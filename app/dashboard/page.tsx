@@ -66,7 +66,13 @@ export default function Dashboard() {
               <CardDescription>Add new photos to generate journal entries</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-primary hover:bg-primary/90">Upload Photos</Button>
+              <Button
+                  className="w-full bg-primary hover:bg-primary/90"
+                  onClick={() => router.push('/diary')}
+                >
+                  Upload Photos
+              </Button>
+
             </CardContent>
           </Card>
 
