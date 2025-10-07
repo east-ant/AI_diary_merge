@@ -32,9 +32,16 @@ export function useGoogleAuth() {
   // Listen for Google sign-in events
   useEffect(() => {
     const handleGoogleSignIn = (event: CustomEvent<GoogleUser>) => {
-      setUser(event.detail)
+      const userData = event.detail
+      // 👇 한글 이름 UTF-8 인코딩 확인
+      const fixedUser = {
+        ...userData,
+        name: userData.name || '',
+        email: userData.email || ''
+      }
+      setUser(fixedUser)
       // Store user in localStorage for persistence
-      localStorage.setItem("googleUser", JSON.stringify(event.detail))
+      localStorage.setItem("googleUser", JSON.stringify(fixedUser))
     }
 
     const handleGoogleSignInError = (event: CustomEvent<string>) => {
@@ -43,19 +50,23 @@ export function useGoogleAuth() {
       localStorage.removeItem("googleUser")
     }
 
-    window.addEventListener("googleSignIn", handleGoogleSignIn as EventListener)
-    window.addEventListener("googleSignInError", handleGoogleSignInError as EventListener)
-
-    // Check for existing user in localStorage
-    const storedUser = localStorage.getItem("googleUser")
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser))
-      } catch (error) {
-        console.error("[v0] Error parsing stored user:", error)
-        localStorage.removeItem("googleUser")
+    // 👇 먼저 localStorage에서 확인
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("googleUser")
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser)
+          console.log("Stored user:", parsedUser) // 👈 디버깅용
+          setUser(parsedUser)
+        } catch (error) {
+          console.error("[v0] Error parsing stored user:", error)
+          localStorage.removeItem("googleUser")
+        }
       }
     }
+
+    window.addEventListener("googleSignIn", handleGoogleSignIn as EventListener)
+    window.addEventListener("googleSignInError", handleGoogleSignInError as EventListener)
 
     return () => {
       window.removeEventListener("googleSignIn", handleGoogleSignIn as EventListener)

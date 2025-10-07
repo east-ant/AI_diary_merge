@@ -45,7 +45,16 @@ const base64UrlDecode = (str: string): string => {
     base64 += "=".repeat(4 - padding)
   }
 
-  return atob(base64)
+  // Decode base64 and handle UTF-8 characters properly
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  
+  // Use TextDecoder for proper UTF-8 decoding
+  const decoder = new TextDecoder('utf-8')
+  return decoder.decode(bytes)
 }
 
 // Handle the credential response from Google

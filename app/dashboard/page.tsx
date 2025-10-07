@@ -50,7 +50,9 @@ export default function Dashboard() {
             </Avatar>
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-1">AI Diary Dashboard</h1>
-              <p className="text-muted-foreground">Welcome back, {user.name}!</p>
+              <p className="text-muted-foreground">
+                Welcome back, {decodeURIComponent(user.name || '')}!
+              </p>
               <p className="text-sm text-muted-foreground/80">{user.email}</p>
             </div>
           </div>

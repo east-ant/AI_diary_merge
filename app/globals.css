@@ -5,7 +5,7 @@
 
 :root {
   /* AI Diary Theme - Soft, minimal colors inspired by the design */
-  --background: oklch(0.98 0.01 45); /* Warm cream background */
+  --background: oklch(95.814% 0.02551 215.34); 
   --foreground: oklch(0.2 0.02 30); /* Warm dark brown */
   --card: oklch(1 0 0); /* Pure white for cards */
   --card-foreground: oklch(0.2 0.02 30);
@@ -121,6 +121,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
