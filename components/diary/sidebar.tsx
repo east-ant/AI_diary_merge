@@ -102,7 +102,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-foreground text-sm truncate">
-                  {user?.name || "Travel Explorer"} {/* user.name 사용. 없으면 'Travel Explorer' 표시 */}
+                  {decodeURIComponent(user?.name || 'Travel Explorer')} {/* user.name 사용. 없으면 'Travel Explorer' 표시 */}
                 </h3>
                 <p className="text-xs text-muted-foreground truncate">
                   {user?.email || "사용자 이메일 없음"} {/* user.email 사용. 없으면 '사용자 이메일 없음' 표시 */}
