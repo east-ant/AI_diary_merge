@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-
+import { getKoreanAddress } from "@/lib/diary/utils"
 import { useState, useRef, useCallback } from "react"
 import { X, Upload, Camera, Loader2, Sparkles, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 
+// EXIF.js 라이브러리 타입 선언
 declare global {
   interface Window {
     EXIF: any
@@ -37,6 +38,7 @@ interface ExifData {
   }
 }
 
+// AI 분석 실패 시 대체 키워드
 const fallbackKeywords = [
   "Transportation",
   "Cafe",
@@ -68,11 +70,12 @@ export function PhotoUploadModal({
   const [isExtractingExif, setIsExtractingExif] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // EXIF 메타데이터 추출 (촬영 시간, GPS, 카메라 정보)
   const extractExifData = useCallback((file: File): Promise<ExifData> => {
     return new Promise((resolve) => {
       setIsExtractingExif(true)
 
-      // Load EXIF.js dynamically
+      // EXIF.js 라이브러리 동적 로드
       if (!window.EXIF) {
         const script = document.createElement("script")
         script.src = "https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"
@@ -84,81 +87,91 @@ export function PhotoUploadModal({
     })
   }, [])
 
-  const processExif = (file: File, resolve: (data: ExifData) => void) => {
-    window.EXIF.getData(file, function () {
-      const exifData: ExifData = {}
+  const processExif = async (file: File, resolve: (data: ExifData) => void) => {
+    const img = new Image()
+    const reader = new FileReader()
 
-      // Extract timestamp
-      const dateTime = window.EXIF.getTag(this, "DateTime") || window.EXIF.getTag(this, "DateTimeOriginal")
-      if (dateTime) {
-        // Convert EXIF date format (YYYY:MM:DD HH:MM:SS) to Date
-        const [datePart, timePart] = dateTime.split(" ")
-        const [year, month, day] = datePart.split(":")
-        const [hour, minute, second] = timePart.split(":")
-        exifData.timestamp = new Date(year, month - 1, day, hour, minute, second)
-      }
+    reader.onload = (e) => {
+      img.src = e.target?.result as string
 
-      // Extract GPS coordinates
-      const lat = window.EXIF.getTag(this, "GPSLatitude")
-      const latRef = window.EXIF.getTag(this, "GPSLatitudeRef")
-      const lon = window.EXIF.getTag(this, "GPSLongitude")
-      const lonRef = window.EXIF.getTag(this, "GPSLongitudeRef")
+      img.onload = () => {
+        window.EXIF.getData(img, function () {
+          const exifData: ExifData = {}
 
-      if (lat && lon) {
-        const latitude = convertDMSToDD(lat, latRef)
-        const longitude = convertDMSToDD(lon, lonRef)
-        exifData.location = { latitude, longitude }
-
-        // Attempt reverse geocoding for location name
-        reverseGeocode(latitude, longitude).then((locationName) => {
-          if (locationName) {
-            exifData.location!.locationName = locationName
+          // 촬영 시간 추출
+          const dateTime = window.EXIF.getTag(img, "DateTime") || window.EXIF.getTag(img, "DateTimeOriginal")
+          if (dateTime) {
+            const [datePart, timePart] = dateTime.split(" ")
+            const [year, month, day] = datePart.split(":")
+            const [hour, minute, second] = timePart.split(":")
+            exifData.timestamp = new Date(year, month - 1, day, hour, minute, second)
           }
+
+          // GPS 좌표 추출
+          const lat = window.EXIF.getTag(img, "GPSLatitude")
+          const latRef = window.EXIF.getTag(img, "GPSLatitudeRef")
+          const lon = window.EXIF.getTag(img, "GPSLongitude")
+          const lonRef = window.EXIF.getTag(img, "GPSLongitudeRef")
+
+          if (lat && lon) {
+            const latitude = convertDMSToDD(lat, latRef)
+            const longitude = convertDMSToDD(lon, lonRef)
+            exifData.location = { latitude, longitude }
+
+            // ✅ await 대신 then() 사용
+            reverseGeocode(latitude, longitude).then((locationName) => {
+              if (locationName) {
+                exifData.location!.locationName = locationName
+                setExifData({ ...exifData }) // UI 갱신
+              }
+            }).catch((e) => {
+              console.error("Reverse geocoding error:", e)
+            })
+         }
+
+          // 카메라 정보 추출
+          const make = window.EXIF.getTag(img, "Make")
+          const model = window.EXIF.getTag(img, "Model")
+          const fNumber = window.EXIF.getTag(img, "FNumber")
+          const exposureTime = window.EXIF.getTag(img, "ExposureTime")
+          const iso = window.EXIF.getTag(img, "ISOSpeedRatings")
+
+          if (make || model || fNumber || exposureTime || iso) {
+            exifData.camera = {
+              make,
+              model,
+              settings: [fNumber && `f/${fNumber}`, exposureTime && `${exposureTime}s`, iso && `ISO ${iso}`]
+                .filter(Boolean)
+                .join(" • "),
+            }
+          }
+
+          setIsExtractingExif(false)
+          resolve(exifData)
         })
       }
+    }
 
-      // Extract camera info
-      const make = window.EXIF.getTag(this, "Make")
-      const model = window.EXIF.getTag(this, "Model")
-      const fNumber = window.EXIF.getTag(this, "FNumber")
-      const exposureTime = window.EXIF.getTag(this, "ExposureTime")
-      const iso = window.EXIF.getTag(this, "ISOSpeedRatings")
-
-      if (make || model || fNumber || exposureTime || iso) {
-        exifData.camera = {
-          make,
-          model,
-          settings: [fNumber && `f/${fNumber}`, exposureTime && `${exposureTime}s`, iso && `ISO ${iso}`]
-            .filter(Boolean)
-            .join(" • "),
-        }
-      }
-
-      setIsExtractingExif(false)
-      resolve(exifData)
-    })
+    reader.readAsDataURL(file)
   }
 
+  // GPS 좌표 변환 (DMS → DD)
   const convertDMSToDD = (dms: number[], ref: string): number => {
     let dd = dms[0] + dms[1] / 60 + dms[2] / 3600
     if (ref === "S" || ref === "W") dd = dd * -1
     return dd
   }
 
+  // 위도/경도 → 도시/국가 이름 변환
   const reverseGeocode = async (lat: number, lon: number): Promise<string | null> => {
-    try {
-      // Using a simple reverse geocoding service (you might want to use a more robust solution)
-      const response = await fetch(
-        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
-      )
-      const data = await response.json()
-      return data.city && data.countryName ? `${data.city}, ${data.countryName}` : null
-    } catch (error) {
-      console.error("Reverse geocoding failed:", error)
-      return null
-    }
-  }
+  console.log("📍 Reverse Geocode Input:", { lat, lon })
+  const address = await getKoreanAddress(lat, lon)
+  console.log("📍 Kakao API Returned:", address)
+  return address || null
+}
 
+
+  // AI 이미지 분석으로 키워드 추천
   const analyzeImage = async (imageData: string) => {
     setIsAnalyzing(true)
     try {
@@ -185,6 +198,7 @@ export function PhotoUploadModal({
     }
   }
 
+  // 파일 선택 시 이미지 읽기 + EXIF 추출 + AI 분석
   const handleFileSelect = useCallback(
     async (file: File) => {
       if (file && file.type.startsWith("image/")) {
@@ -203,6 +217,7 @@ export function PhotoUploadModal({
     [extractExifData],
   )
 
+  // 드래그 앤 드롭 핸들러
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
@@ -248,7 +263,7 @@ export function PhotoUploadModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border">
         <div className="p-6">
-          {/* Header */}
+          {/* 헤더 */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-foreground">Add Photo</h2>
             <Button variant="ghost" size="sm" onClick={onClose}>
@@ -256,7 +271,7 @@ export function PhotoUploadModal({
             </Button>
           </div>
 
-          {/* Photo Upload Area */}
+          {/* 사진 업로드 영역 */}
           <div className="mb-6">
             {!photo ? (
               <div
@@ -301,6 +316,7 @@ export function PhotoUploadModal({
             )}
           </div>
 
+          {/* EXIF 메타데이터 표시 */}
           {photo && exifData && (
             <div className="mb-6">
               <h3 className="text-sm font-medium text-foreground mb-3 flex items-center">
@@ -316,7 +332,15 @@ export function PhotoUploadModal({
                 {exifData.timestamp && (
                   <div className="flex items-center space-x-2 text-sm">
                     <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-foreground">{exifData.timestamp.toLocaleString()}</span>
+                    <span className="text-foreground">
+                      {exifData.timestamp.toLocaleString("ko-KR", {
+                        year: "numeric",
+                        month: "long", // 예: 10월
+                        day: "numeric", // 예: 15일
+                        hour: "2-digit", // 예: 13시
+                        minute: "2-digit", // 예: 05분
+                      })}
+                    </span>
                   </div>
                 )}
                 {exifData.location && (
@@ -341,7 +365,7 @@ export function PhotoUploadModal({
             </div>
           )}
 
-          {/* Keywords Section */}
+          {/* AI 추천 키워드 */}
           {photo && (
             <>
               <div className="mb-4">
@@ -378,6 +402,7 @@ export function PhotoUploadModal({
                 </div>
               </div>
 
+              {/* 커스텀 키워드 추가 */}
               <div className="mb-6">
                 <h3 className="text-sm font-medium text-foreground mb-3">Add Custom Keyword</h3>
                 <div className="flex space-x-2">
@@ -398,6 +423,7 @@ export function PhotoUploadModal({
                 </div>
               </div>
 
+              {/* 선택된 키워드 목록 */}
               {selectedKeywords.length > 0 && (
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-foreground mb-3">
@@ -422,7 +448,7 @@ export function PhotoUploadModal({
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* 저장/취소 버튼 */}
               <div className="flex justify-end space-x-3">
                 <Button variant="outline" onClick={onClose}>
                   Cancel

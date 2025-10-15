@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -124,3 +125,13 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+@font-face {
+  font-family: 'Cafe24Shiningstar';
+  src: url('/fonts/Cafe24Shiningstar-v2.0.woff2') format('woff2'),
+       url('/fonts/Cafe24Shiningstar-v2.0.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+

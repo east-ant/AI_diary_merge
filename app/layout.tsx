@@ -1,14 +1,15 @@
-// this file : app/diary/layout
+// this file : app/layout.tsx
 
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'AI Diary', //웹페이지 제목
+  description: 'Smart diary that AI analyzes',
   generator: 'v0.app',
 }
 
@@ -18,10 +19,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" suppressHydrationWarning>
-      <body className={`${GeistSans.className} ${GeistMono.className} font-sans`} suppressHydrationWarning>
+    <html lang="ko" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <head />
+      <body className="font-sans antialiased">
         {children}
         <Analytics />
+        <Toaster />
       </body>
     </html>
   )

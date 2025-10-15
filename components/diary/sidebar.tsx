@@ -25,12 +25,12 @@ interface SidebarProps {
   onNavigateToDashboard: () => void
 }
 
-
 export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, onDeleteDiary, isOpen, onToggle, onNavigateToDashboard  }: SidebarProps) {
   const [diariesExpanded, setDiariesExpanded] = useState(true)
   const { user } = useGoogleAuth()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
+  // 다이어리 삭제 확인 모달 표시
   const handleDeleteClick = (e: React.MouseEvent, diaryId: string) => {
     e.stopPropagation()
     setDeleteConfirmId(diaryId)
@@ -50,6 +50,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
   
   return (
     <>
+      {/* 사이드바 메인 컨테이너 - isOpen에 따라 너비 조절 (80 or 16) */}
       <aside
         className={`
           fixed top-0 left-0 h-screen bg-sidebar border-r border-border z-40
@@ -57,6 +58,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           ${isOpen ? "w-80" : "w-16"}
         `}
       >
+        {/* 헤더: 로고 및 토글 버튼 */}
         <div className="p-4 border-b border-border flex-shrink-0">
           {isOpen ? (
             <div className="flex items-center justify-between">
@@ -85,27 +87,27 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           )}
         </div>
 
+        {/* 사용자 프로필 섹션 */}
         {isOpen ? (
           <div className="p-4 border-b border-border flex-shrink-0">
             <div className="flex items-center space-x-3 ">
               <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer" onClick={onNavigateToDashboard}>
                 {user?.picture ? (
                   <img
-                    src={user.picture} // 프로필 사진 URL 사용
+                    src={user.picture}
                     alt={user.name || "User Profile"}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  // photoUrl이 없을 경우 기존의 User 아이콘을 폴백으로 표시
                   <User className="w-5 h-5 text-primary" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-foreground text-sm truncate">
-                  {decodeURIComponent(user?.name || 'Travel Explorer')} {/* user.name 사용. 없으면 'Travel Explorer' 표시 */}
+                  {decodeURIComponent(user?.name || 'Travel Explorer')}
                 </h3>
                 <p className="text-xs text-muted-foreground truncate">
-                  {user?.email || "사용자 이메일 없음"} {/* user.email 사용. 없으면 '사용자 이메일 없음' 표시 */}
+                  {user?.email || "사용자 이메일 없음"}
                 </p>
               </div>
             </div>
@@ -115,18 +117,18 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
             <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center cursor-pointer" onClick={onNavigateToDashboard}>
             {user?.picture ? (
                   <img
-                    src={user.picture} // 프로필 사진 URL 사용
+                    src={user.picture}
                     alt={user.name || "User Profile"}
                     className="w-full h-full object-cover rounded-full"
                   />
                 ) : (
-                  // photoUrl이 없을 경우 기존의 User 아이콘을 폴백으로 표시
                    <User className="w-4 h-4 text-primary" />
                 )}
             </div>
           </div>
         )}
 
+        {/* 새 다이어리 생성 버튼 */}
         <div className="p-4 flex-shrink-0">
           {isOpen ? (
             <Button
@@ -147,6 +149,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           )}
         </div>
 
+        {/* 다이어리 목록 섹션 */}
         {isOpen ? (
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             <button
@@ -206,6 +209,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
                           </div>
                         </div>
                       </div>
+                      {/* 다이어리 삭제 버튼 (hover 시 표시) */}
                       <button
                         onClick={(e) => handleDeleteClick(e, diary.id)}
                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
@@ -227,6 +231,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           </div>
         )}
 
+        {/* 푸터: 버전 정보 */}
         {isOpen && (
           <div className="p-4 border-t border-border bg-sidebar-accent flex-shrink-0">
             <p className="text-xs text-muted-foreground text-center font-medium">Travel Diary v1.0</p>
@@ -241,6 +246,8 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           </div>
         )}
       </aside>
+
+      {/* 삭제 확인 모달 */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">

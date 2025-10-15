@@ -118,7 +118,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 }
-
+/*   기본 전역 스타일 */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -127,13 +127,14 @@
     @apply bg-background text-foreground;
   }
 }
-
+/*   폰트 및 색상 설정 */
 body {
   font-family: var(--font-sans);
   background: hsl(var(--background));
   color: hsl(var(--foreground));
 }
 
+/*   타임라인 연결선 스타일 */
 .timeline-connector {
   background: linear-gradient(
     to bottom,
@@ -142,4 +143,13 @@ body {
     hsl(var(--border)) 80%,
     transparent 100%
   );
+}
+
+@font-face {
+  font-family: 'Cafe24Shiningstar';
+  src: url('/fonts/Cafe24Shiningstar-v2.0.woff2') format('woff2'),
+       url('/fonts/Cafe24Shiningstar-v2.0.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }

@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useGoogleAuth } from "@/hooks/use-google-auth"
 import { Plus, Sun, Sunset, Moon, Edit2, Trash2, FileText, Clock, MapPin, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -52,28 +50,84 @@ const DIARIES_STORAGE_KEY = "travel-diaries"
 const CURRENT_DIARY_KEY = "current-diary-id"
 
 export default function TravelDiary() {
-  const router = useRouter()
-  const { user, loading } = useGoogleAuth()
-  
   const [diaries, setDiaries] = useState<Diary[]>([])
   const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showNewDiaryDialog, setShowNewDiaryDialog] = useState(false)
+  const [newDiaryTitle, setNewDiaryTitle] = useState("")
+
   const [photoSlots, setPhotoSlots] = useState<PhotoSlot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
   const [showPreview, setShowPreview] = useState(false)
 
+  useEffect(() => {
+    const savedDiaries = localStorage.getItem(DIARIES_STORAGE_KEY)
+    const savedCurrentId = localStorage.getItem(CURRENT_DIARY_KEY)
+
+    if (savedDiaries) {
+      try {
+        const parsedDiaries = JSON.parse(savedDiaries)
+        const processedDiaries = parsedDiaries.map((diary: Diary) => ({
+          ...diary,
+          photoSlots: diary.photoSlots.map((slot: any) => ({
+            ...slot,
+            exifData: slot.exifData
+              ? {
+                  ...slot.exifData,
+                  timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
+                }
+              : undefined,
+          })),
+        }))
+        setDiaries(processedDiaries)
+
+        if (savedCurrentId && processedDiaries.find((d: Diary) => d.id === savedCurrentId)) {
+          setCurrentDiaryId(savedCurrentId)
+          const currentDiary = processedDiaries.find((d: Diary) => d.id === savedCurrentId)
+          if (currentDiary) {
+            setPhotoSlots(currentDiary.photoSlots)
+          }
+        } else if (processedDiaries.length > 0) {
+          setCurrentDiaryId(processedDiaries[0].id)
+          setPhotoSlots(processedDiaries[0].photoSlots)
+        } else {
+          createNewDiary()
+        }
+      } catch (error) {
+        console.error("Failed to load saved diaries:", error)
+        createNewDiary()
+      }
+    } else {
+      createNewDiary()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentDiaryId) {
+      setDiaries((prevDiaries) => {
+        const updatedDiaries = prevDiaries.map((diary) =>
+          diary.id === currentDiaryId ? { ...diary, photoSlots, date: new Date().toLocaleDateString() } : diary,
+        )
+        localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updatedDiaries))
+        return updatedDiaries
+      })
+    }
+  }, [photoSlots, currentDiaryId])
+
   const createNewDiary = () => {
+    setShowNewDiaryDialog(true)
+    setNewDiaryTitle(`여행 일기 ${new Date().toLocaleDateString()}`)
+  }
+
+  const confirmCreateDiary = () => {
+    const title = newDiaryTitle.trim() || `여행 일기 ${new Date().toLocaleDateString()}`
+
     const newDiary: Diary = {
       id: Date.now().toString(),
-      title: `Travel Diary ${new Date().toLocaleDateString()}`,
+      title: title,
       date: new Date().toLocaleDateString(),
-      photoSlots: [
-        { id: "1", keywords: [], timeSlot: "morning", timestamp: Date.now() },
-        { id: "2", keywords: [], timeSlot: "midday", timestamp: Date.now() + 1 },
-        { id: "3", keywords: [], timeSlot: "afternoon", timestamp: Date.now() + 2 },
-        { id: "4", keywords: [], timeSlot: "evening", timestamp: Date.now() + 3 },
-      ],
+      photoSlots: [{ id: "1", keywords: [], timeSlot: "morning", timestamp: Date.now() }],
       createdAt: Date.now(),
     }
 
@@ -88,25 +142,14 @@ export default function TravelDiary() {
     setCurrentStep(1)
     setShowPreview(false)
     setSidebarOpen(false)
+
+    setShowNewDiaryDialog(false)
+    setNewDiaryTitle("")
   }
 
-  const deleteDiary = (diaryId: string) => {
-  setDiaries((prev) => {
-    const updated = prev.filter((d) => d.id !== diaryId)
-    localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updated))
-    
-    // 삭제된 다이어리가 현재 선택된 것이라면 다른 것으로 변경
-    if (currentDiaryId === diaryId) {
-      if (updated.length > 0) {
-        setCurrentDiaryId(updated[0].id)
-        setPhotoSlots(updated[0].photoSlots)
-      } else {
-        createNewDiary()
-      }
-    }
-    
-    return updated
-  })
+  const cancelCreateDiary = () => {
+    setShowNewDiaryDialog(false)
+    setNewDiaryTitle("")
   }
 
   const selectDiary = (diaryId: string) => {
@@ -175,7 +218,11 @@ export default function TravelDiary() {
     )
   }
 
-  const formatPhotoTime = (slot: PhotoSlot): string => {
+  const formatPhotoTime = (slot: PhotoSlot): string | null => {
+    if (!slot.photo) {
+      return null
+    }
+
     if (slot.exifData?.timestamp) {
       return slot.exifData.timestamp.toLocaleTimeString([], {
         hour: "2-digit",
@@ -183,8 +230,7 @@ export default function TravelDiary() {
         hour12: true,
       })
     }
-    const timeSlotInfo = timeSlots.find((ts) => ts.id === slot.timeSlot)
-    return timeSlotInfo?.label || "Unknown"
+    return null
   }
 
   const getLocationDisplay = (slot: PhotoSlot): string | null => {
@@ -215,83 +261,25 @@ export default function TravelDiary() {
       setShowPreview(true)
     }
   }
-  const handleNavigateToDashboard = () => {
-    router.push("/dashboard") // 대시보드 경로로 이동
-  }
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/")
-    }
-  }, [user, loading, router])
+  const deleteDiary = (diaryId: string) => {
+    setDiaries((prevDiaries) => {
+      const updatedDiaries = prevDiaries.filter((d) => d.id !== diaryId)
+      localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updatedDiaries))
 
-  useEffect(() => {
-    const savedDiaries = localStorage.getItem(DIARIES_STORAGE_KEY)
-    const savedCurrentId = localStorage.getItem(CURRENT_DIARY_KEY)
-
-    if (savedDiaries) {
-      try {
-        const parsedDiaries = JSON.parse(savedDiaries)
-        const processedDiaries = parsedDiaries.map((diary: Diary) => ({
-          ...diary,
-          photoSlots: diary.photoSlots.map((slot: any) => ({
-            ...slot,
-            exifData: slot.exifData
-              ? {
-                  ...slot.exifData,
-                  timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
-                }
-              : undefined,
-          })),
-        }))
-        setDiaries(processedDiaries)
-
-        if (savedCurrentId && processedDiaries.find((d: Diary) => d.id === savedCurrentId)) {
-          setCurrentDiaryId(savedCurrentId)
-          const currentDiary = processedDiaries.find((d: Diary) => d.id === savedCurrentId)
-          if (currentDiary) {
-            setPhotoSlots(currentDiary.photoSlots)
-          }
-        } else if (processedDiaries.length > 0) {
-          setCurrentDiaryId(processedDiaries[0].id)
-          setPhotoSlots(processedDiaries[0].photoSlots)
+      if (currentDiaryId === diaryId) {
+        if (updatedDiaries.length > 0) {
+          const newCurrentDiary = updatedDiaries[0]
+          setCurrentDiaryId(newCurrentDiary.id)
+          localStorage.setItem(CURRENT_DIARY_KEY, newCurrentDiary.id)
+          setPhotoSlots(newCurrentDiary.photoSlots)
         } else {
-          createNewDiary()
+          setTimeout(() => createNewDiary(), 100)
         }
-      } catch (error) {
-        console.error("Failed to load saved diaries:", error)
-        createNewDiary()
       }
-    } else {
-      createNewDiary()
-    }
-  }, [])
 
-  useEffect(() => {
-    if (currentDiaryId) {
-      setDiaries((prevDiaries) => {
-        const updatedDiaries = prevDiaries.map((diary) =>
-          diary.id === currentDiaryId ? { ...diary, photoSlots, date: new Date().toLocaleDateString() } : diary,
-        )
-        localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updatedDiaries))
-        return updatedDiaries
-      })
-    }
-  }, [photoSlots, currentDiaryId])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return null
+      return updatedDiaries
+    })
   }
 
   const sortedPhotoSlots = sortPhotosByTime(photoSlots)
@@ -303,6 +291,24 @@ export default function TravelDiary() {
     photoCount: diary.photoSlots.filter((slot) => slot.photo).length,
   }))
 
+  const getTimeEmoji = (slot: PhotoSlot) => {
+    if (!slot.photo || !slot.exifData?.timestamp) {
+      return null // No emoji for empty slots
+    }
+
+    const hour = slot.exifData.timestamp.getHours()
+
+    if (hour >= 5 && hour < 12) {
+      return Sun // Morning
+    } else if (hour >= 12 && hour < 17) {
+      return Sun // Afternoon
+    } else if (hour >= 17 && hour < 20) {
+      return Sunset // Evening
+    } else {
+      return Moon // Night
+    }
+  }
+
   return (
     <div className="min-h-screen h-screen bg-background flex overflow-hidden">
       <Sidebar
@@ -313,7 +319,7 @@ export default function TravelDiary() {
         onDeleteDiary={deleteDiary}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onNavigateToDashboard={handleNavigateToDashboard}
+         onNavigateToDashboard={() => (window.location.href = "/dashboard")}
       />
 
       <div
@@ -335,7 +341,7 @@ export default function TravelDiary() {
                   1
                 </div>
                 <span className={`text-sm ${currentStep >= 1 ? "text-foreground" : "text-muted-foreground"}`}>
-                  Timeline
+                  타임라인
                 </span>
               </div>
 
@@ -350,7 +356,7 @@ export default function TravelDiary() {
                   2
                 </div>
                 <span className={`text-sm ${currentStep >= 2 ? "text-foreground" : "text-muted-foreground"}`}>
-                  Review
+                  검토
                 </span>
               </div>
 
@@ -365,14 +371,14 @@ export default function TravelDiary() {
                   3
                 </div>
                 <span className={`text-sm ${currentStep >= 3 ? "text-foreground" : "text-muted-foreground"}`}>
-                  Generate
+                  생성
                 </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center mt-6">
               <div className="text-sm text-muted-foreground">
-                {getCompletedPhotos().length} of {photoSlots.length} photos completed
+                {getCompletedPhotos().length} / {photoSlots.length} 사진 완료
               </div>
               <div className="flex space-x-3">
                 {currentStep === 2 && (
@@ -383,7 +389,7 @@ export default function TravelDiary() {
                       setShowPreview(false)
                     }}
                   >
-                    Back to Timeline
+                    타임라인으로 돌아가기
                   </Button>
                 )}
                 {currentStep === 1 && (
@@ -393,7 +399,7 @@ export default function TravelDiary() {
                     className="bg-primary hover:bg-primary/90"
                   >
                     <FileText className="w-4 h-4 mr-2" />
-                    Review & Generate
+                    검토 및 생성
                   </Button>
                 )}
               </div>
@@ -405,6 +411,7 @@ export default function TravelDiary() {
           {showPreview ? (
             <DiaryPreview
               photoSlots={getCompletedPhotos()}
+              diaryTitle={getCurrentDiaryTitle()}
               onBack={() => {
                 setCurrentStep(1)
                 setShowPreview(false)
@@ -417,8 +424,7 @@ export default function TravelDiary() {
 
                 <div className="space-y-8">
                   {sortedPhotoSlots.map((slot, index) => {
-                    const timeInfo = getTimeSlotInfo(slot.timeSlot)
-                    const IconComponent = timeInfo.icon
+                    const TimeIcon = getTimeEmoji(slot)
                     const photoTime = formatPhotoTime(slot)
                     const location = getLocationDisplay(slot)
 
@@ -426,23 +432,21 @@ export default function TravelDiary() {
                       <div key={slot.id} className="relative flex items-start space-x-6">
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 rounded-full bg-secondary border-2 border-border flex items-center justify-center">
-                            {slot.exifData?.timestamp ? (
-                              <Clock className="w-6 h-6 text-primary" />
-                            ) : (
-                              <IconComponent className="w-6 h-6 text-muted-foreground" />
-                            )}
+                            {TimeIcon ? <TimeIcon className="w-6 h-6 text-primary" /> : <div className="w-6 h-6" />}
                           </div>
-                          <span className="text-xs text-muted-foreground mt-2 font-medium text-center">
-                            {photoTime}
-                            {location && (
-                              <div className="flex items-center justify-center mt-1 text-xs text-muted-foreground">
-                                <MapPin className="w-3 h-3 mr-1" />
-                                <span className="truncate max-w-20" title={location}>
-                                  {location.length > 15 ? `${location.substring(0, 15)}...` : location}
-                                </span>
-                              </div>
-                            )}
-                          </span>
+                          {photoTime && (
+                            <span className="text-xs text-muted-foreground mt-2 font-medium text-center">
+                              {photoTime}
+                              {location && (
+                                <div className="flex items-center justify-center mt-1 text-xs text-muted-foreground">
+                                  <MapPin className="w-3 h-3 mr-1" />
+                                  <span className="truncate max-w-20" title={location}>
+                                    {location.length > 15 ? `${location.substring(0, 15)}...` : location}
+                                  </span>
+                                </div>
+                              )}
+                            </span>
+                          )}
                         </div>
 
                         <Card className="flex-1 p-6 bg-card border-border hover:border-primary/50 transition-colors">
@@ -518,7 +522,7 @@ export default function TravelDiary() {
                                   <Plus className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
                                 </div>
                                 <span className="text-sm text-muted-foreground group-hover:text-primary transition-colors">
-                                  Add photo
+                                  사진 추가
                                 </span>
                               </button>
 
@@ -547,13 +551,47 @@ export default function TravelDiary() {
                     className="border-dashed border-2 hover:border-primary/50 bg-transparent"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add more photos
+                    사진 더 추가하기
                   </Button>
                 </div>
               </div>
             </div>
           )}
         </div>
+
+        {showNewDiaryDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-foreground mb-2">새 일기 만들기</h3>
+              <p className="text-sm text-muted-foreground mb-4">일기 제목을 입력하세요</p>
+              <input
+                type="text"
+                value={newDiaryTitle}
+                onChange={(e) => setNewDiaryTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    confirmCreateDiary()
+                  }
+                }}
+                placeholder="예: 제주도 여행"
+                className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-6"
+                autoFocus
+              />
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={cancelCreateDiary}
+                  className="text-muted-foreground hover:text-foreground bg-transparent"
+                >
+                  취소
+                </Button>
+                <Button onClick={confirmCreateDiary} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                  만들기
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {selectedSlot && (
           <PhotoUploadModal
