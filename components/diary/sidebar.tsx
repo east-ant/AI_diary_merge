@@ -1,11 +1,21 @@
 //components/diary/sidebar.tsx
 
 "use client"
-import { Plus, Calendar, User, BookOpen, ChevronDown, ChevronRight, Plane, PanelLeft, X } from "lucide-react"
+import { Plus, Calendar, User, BookOpen, ChevronDown, ChevronRight, Plane, PanelLeft, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useState, useEffect } from "react"
 import { useGoogleAuth } from "@/hooks/use-google-auth"
+import { useRouter } from "next/navigation"
 
 interface Diary {
   id: string
@@ -27,7 +37,8 @@ interface SidebarProps {
 
 export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, onDeleteDiary, isOpen, onToggle, onNavigateToDashboard  }: SidebarProps) {
   const [diariesExpanded, setDiariesExpanded] = useState(true)
-  const { user } = useGoogleAuth()
+  const { user, signOut } = useGoogleAuth()
+  const router = useRouter()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // 다이어리 삭제 확인 모달 표시
@@ -46,6 +57,12 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
   const cancelDelete = () => {
     setDeleteConfirmId(null)
   }
+
+  // 로그아웃 핸들러
+  const handleLogout = async () => {
+    await signOut()
+    router.push("/")
+  }
   
   
   return (
@@ -63,7 +80,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           {isOpen ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 ">
-                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center cursor-pointer" onClick={onNavigateToDashboard}>
                   <Plane className="w-6 h-6 text-primary-foreground" />
                 </div>
                 <div>
@@ -90,41 +107,69 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
         {/* 사용자 프로필 섹션 */}
         {isOpen ? (
           <div className="p-4 border-b border-border flex-shrink-0">
-            <div className="flex items-center space-x-3 ">
-              <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer" onClick={onNavigateToDashboard}>
-                {user?.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name || "User Profile"}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User className="w-5 h-5 text-primary" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-foreground text-sm truncate">
-                  {decodeURIComponent(user?.name || 'Travel Explorer')}
-                </h3>
-                <p className="text-xs text-muted-foreground truncate">
-                  {user?.email || "사용자 이메일 없음"}
-                </p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center space-x-3 w-full hover:bg-accent/50 p-2 rounded-lg transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer">
+                    <Avatar className="h-full w-full">
+                      <AvatarImage src={user?.picture || "/placeholder.svg"} alt={user?.name} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {user?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <h3 className="font-medium text-foreground text-sm truncate">
+                      {decodeURIComponent(user?.name || 'Travel Explorer')}
+                    </h3>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.email || "사용자 이메일 없음"}
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  로그아웃
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : (
           <div className="p-4 border-b border-border flex-shrink-0 flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center cursor-pointer" onClick={onNavigateToDashboard}>
-            {user?.picture ? (
-                  <img
-                    src={user.picture}
-                    alt={user.name || "User Profile"}
-                    className="w-full h-full object-cover rounded-full"
-                  />
-                ) : (
-                   <User className="w-4 h-4 text-primary" />
-                )}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer">
+                  <Avatar className="h-full w-full">
+                    <AvatarImage src={user?.picture || "/placeholder.svg"} alt={user?.name} />
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      {user?.name?.charAt(0).toUpperCase() || <User className="w-4 h-4" />}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  로그아웃
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 
@@ -133,7 +178,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           {isOpen ? (
             <Button
               onClick={onNewDiary}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-11"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-11 cursor-pointer"
             >
               <Plus className="w-5 h-5 mr-2" />
               New Diary
@@ -142,7 +187,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
             <Button
               onClick={onNewDiary}
               size="icon"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-10"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-10 cursor-pointer"
             >
               <Plus className="w-5 h-5" />
             </Button>

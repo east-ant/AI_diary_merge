@@ -319,7 +319,7 @@ export default function TravelDiary() {
         onDeleteDiary={deleteDiary}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-         onNavigateToDashboard={() => (window.location.href = "/dashboard")}
+         onNavigateToDashboard={() => (window.location.href = "/")}
       />
 
       <div

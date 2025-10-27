@@ -6,16 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// ✅ 좌표 → 한글 주소 (Kakao Local API 사용)
+// 좌표 → 한글 주소 (Kakao Local API 사용)
 export async function getKoreanAddress(lat: number, lng: number): Promise<string> {
-  const kakaoKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "b5e3dc69971ba731fd9afa52f35d1e45"
+  const kakaoKey = process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY || "demo-client-id" //도메인에서 키할당
 
   try {
     const response = await fetch(
-      `https://dapi.kakao.com/v2/local/geo/coord2address.json?x=${lng}&y=${lat}`,
+      `https://dapi.kakao.com/v2/local/geo/coord2address.json?x=${lng}&y=${lat}`, //API에 JSON 형식으로 요청
       {
         headers: {
-          Authorization: `KakaoAK ${kakaoKey}`,
+          Authorization: `KakaoAK ${kakaoKey}`, //요청권한 인증
         },
       }
     )

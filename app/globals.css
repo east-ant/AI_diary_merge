@@ -6,7 +6,7 @@
 
 :root {
   /* AI Diary Theme - Soft, minimal colors inspired by the design */
-  --background: oklch(95.814% 0.02551 215.34); 
+  --background: oklch(1 0 0);
   --foreground: oklch(0.2 0.02 30); /* Warm dark brown */
   --card: oklch(1 0 0); /* Pure white for cards */
   --card-foreground: oklch(0.2 0.02 30);
@@ -41,40 +41,6 @@
   --sidebar-ring: oklch(0.45 0.12 15);
 }
 
-.dark {
-  --background: oklch(0.08 0.02 30); /* Dark warm background */
-  --foreground: oklch(0.95 0.01 45); /* Light cream text */
-  --card: oklch(0.12 0.02 30); /* Dark warm card */
-  --card-foreground: oklch(0.95 0.01 45);
-  --popover: oklch(0.12 0.02 30);
-  --popover-foreground: oklch(0.95 0.01 45);
-  --primary: oklch(0.7 0.15 15); /* Lighter coral for dark mode */
-  --primary-foreground: oklch(0.08 0.02 30);
-  --secondary: oklch(0.15 0.02 30);
-  --secondary-foreground: oklch(0.95 0.01 45);
-  --muted: oklch(0.15 0.02 30);
-  --muted-foreground: oklch(0.6 0.02 45);
-  --accent: oklch(0.18 0.03 45);
-  --accent-foreground: oklch(0.95 0.01 45);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.95 0.01 45);
-  --border: oklch(0.18 0.02 30);
-  --input: oklch(0.15 0.02 30);
-  --ring: oklch(0.7 0.15 15);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.12 0.02 30);
-  --sidebar-foreground: oklch(0.95 0.01 45);
-  --sidebar-primary: oklch(0.7 0.15 15);
-  --sidebar-primary-foreground: oklch(0.08 0.02 30);
-  --sidebar-accent: oklch(0.15 0.02 30);
-  --sidebar-accent-foreground: oklch(0.95 0.01 45);
-  --sidebar-border: oklch(0.18 0.02 30);
-  --sidebar-ring: oklch(0.7 0.15 15);
-}
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -125,13 +91,3 @@
     @apply bg-background text-foreground font-sans;
   }
 }
-
-@font-face {
-  font-family: 'Cafe24Shiningstar';
-  src: url('/fonts/Cafe24Shiningstar-v2.0.woff2') format('woff2'),
-       url('/fonts/Cafe24Shiningstar-v2.0.woff') format('woff');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
