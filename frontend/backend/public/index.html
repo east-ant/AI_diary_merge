@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>이미지 업로드</title>
+</head>
+<body>
+  <h1>이미지 업로드</h1>
+
+  <form id="uploadForm" enctype="multipart/form-data" method="post" action="http://localhost:3000/upload">
+    <input type="file" name="image" accept="image/*" required />
+    <button type="submit">업로드</button>
+  </form>
+
+  <h2>업로드된 이미지</h2>
+  <div id="gallery"></div>
+
+  <script>
+    // DB에 저장된 이미지 불러오기
+    async function loadImages() {
+      const res = await fetch("http://localhost:3000/images");
+      const images = await res.json();
+
+      const gallery = document.getElementById("gallery");
+      gallery.innerHTML = "";
+      images.forEach(img => {
+        const imageElement = document.createElement("img");
+        imageElement.src = "http://localhost:3000" + img.imageUrl;
+        imageElement.width = 150;
+        gallery.appendChild(imageElement);
+      });
+    }
+
+    // 업로드 후 갤러리 갱신
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+
+      const response = await fetch("http://localhost:3000/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      alert(result.message);
+      loadImages();
+    });
+
+    // 페이지 처음 로드할 때 기존 이미지 보여주기
+    loadImages();
+  </script>
+</body>
+</html>
