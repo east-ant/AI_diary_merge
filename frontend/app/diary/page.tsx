@@ -54,15 +54,37 @@ export default function TravelDiary() {
   const [currentStep, setCurrentStep] = useState(1)
   const [showPreview, setShowPreview] = useState(false)
 
-  // ✅ 로그인된 사용자 로드
+  // ✅ 로그인된 사용자 로드 (Google 로그인 + 이메일 로그인)
   useEffect(() => {
-    const stored = localStorage.getItem("user")
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      setUser({
-        username: parsed.email.split("@")[0],
-        email: parsed.email,
-      })
+    // ✅ Google 로그인 사용자 확인
+    const storedGoogleUser = localStorage.getItem("googleUser")
+    if (storedGoogleUser) {
+      try {
+        const parsed = JSON.parse(storedGoogleUser)
+        setUser({
+          username: parsed.username,
+          email: parsed.email,
+        })
+        console.log("✅ Google 사용자 로드됨:", parsed)
+        return
+      } catch (error) {
+        console.error("❌ Google 사용자 파싱 실패:", error)
+      }
+    }
+
+    // ✅ 이메일/비밀번호 로그인 사용자 확인
+    const storedEmailUser = localStorage.getItem("user")
+    if (storedEmailUser) {
+      try {
+        const parsed = JSON.parse(storedEmailUser)
+        setUser({
+          username: parsed.email.split("@")[0],
+          email: parsed.email,
+        })
+        console.log("✅ 이메일 사용자 로드됨:", parsed)
+      } catch (error) {
+        console.error("❌ 이메일 사용자 파싱 실패:", error)
+      }
     }
   }, [])
 

@@ -8,6 +8,8 @@ const ExifParser = require("exif-parser");
 const bcrypt = require("bcrypt");
 
 const app = express();
+require("dotenv").config();
+
 
 // ✅ 프론트엔드(Next.js)와 연결할 수 있도록 CORS 허용
 app.use(
@@ -28,7 +30,7 @@ app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
 // ✅ MongoDB 연결 설정
-const uri = "mongodb://127.0.0.1:27017";
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
 let imagesCollection, loginCollection, diariesCollection;
 
@@ -115,6 +117,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // ✅ [POST] Google 로그인/회원가입 API
+// ✅ [POST] Google 로그인/회원가입 API (MongoDB Cloud 호환)
 app.post("/api/google-login", async (req, res) => {
   console.log("📥 Google 로그인 요청:", req.body);
   const { email, name, picture } = req.body;
@@ -124,11 +127,11 @@ app.post("/api/google-login", async (req, res) => {
   }
 
   try {
-    // 기존 사용자 확인
+    // ✅ 1. 기존 사용자 확인
     let user = await loginCollection.findOne({ email });
 
     if (!user) {
-      // 새 사용자 생성 (Google 로그인은 비밀번호 없음)
+      // ✅ 2. 새 사용자 생성 (Google 로그인은 비밀번호 없음)
       const newUser = {
         email,
         username: name || email.split("@")[0],
@@ -137,21 +140,39 @@ app.post("/api/google-login", async (req, res) => {
         createdAt: new Date(),
       };
       
-      await loginCollection.insertOne(newUser);
-      user = newUser;
-      console.log("✅ 새 Google 사용자 생성:", email);
+      // ✅ 3. 삽입 후 결과 확인
+      const insertResult = await loginCollection.insertOne(newUser);
+      
+      if (!insertResult.insertedId) {
+        console.error("❌ MongoDB insertOne 실패");
+        return res.status(500).json({ 
+          success: false, 
+          msg: "사용자 생성에 실패했습니다. MongoDB 연결을 확인하세요." 
+        });
+      }
+
+      user = {
+        ...newUser,
+        _id: insertResult.insertedId
+      };
+      console.log("✅ 새 Google 사용자 생성:", email, "ID:", insertResult.insertedId);
     } else {
       console.log("✅ 기존 Google 사용자 로그인:", email);
-      // 기존 사용자의 프로필 사진 업데이트 (선택사항)
+      // ✅ 4. 기존 사용자의 프로필 사진 업데이트 (선택사항)
       if (picture && user.picture !== picture) {
-        await loginCollection.updateOne(
+        const updateResult = await loginCollection.updateOne(
           { email },
-          { $set: { picture: picture } }
+          { $set: { picture: picture, updatedAt: new Date() } }
         );
-        user.picture = picture;
+        
+        if (updateResult.modifiedCount > 0) {
+          user.picture = picture;
+          console.log("✅ 프로필 사진 업데이트됨");
+        }
       }
     }
 
+    // ✅ 5. 성공 응답
     res.json({
       success: true,
       msg: "Google 로그인 성공",
@@ -164,7 +185,12 @@ app.post("/api/google-login", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Google 로그인 에러:", error);
-    res.status(500).json({ success: false, msg: "서버 오류가 발생했습니다." });
+    console.error("❌ 에러 상세:", error.message);
+    res.status(500).json({ 
+      success: false, 
+      msg: "서버 오류가 발생했습니다.",
+      error: error.message // 개발 중에만 활용
+    });
   }
 });
 

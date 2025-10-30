@@ -4,6 +4,9 @@
 import { useState, useEffect, useCallback } from "react"
 import { loadGoogleScript, initializeGoogleAuth, type GoogleUser } from "@/lib/google-auth"
 
+// ✅ 백엔드 URL (환경변수로 관리)
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+
 export function useGoogleAuth() {
   const [user, setUser] = useState<GoogleUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -16,7 +19,6 @@ export function useGoogleAuth() {
         await loadGoogleScript()
         setIsGoogleLoaded(true)
 
-        // Initialize with a demo client ID (user needs to replace this)
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "demo-client-id"
         initializeGoogleAuth(clientId)
       } catch (error) {
@@ -31,17 +33,79 @@ export function useGoogleAuth() {
 
   // Listen for Google sign-in events
   useEffect(() => {
-    const handleGoogleSignIn = (event: CustomEvent<GoogleUser>) => {
+    const handleGoogleSignIn = async (event: CustomEvent<GoogleUser>) => {
       const userData = event.detail
-      // 👇 한글 이름 UTF-8 인코딩 확인
-      const fixedUser = {
-        ...userData,
-        name: userData.name || '',
-        email: userData.email || ''
+      console.log("✅ Google Sign-In 이벤트 받음:", userData)
+
+      try {
+        // ✅ 백엔드로 Google 로그인 정보 전송
+        console.log("📤 백엔드로 요청 전송:", {
+          url: `${BACKEND_URL}/api/google-login`,
+          email: userData.email,
+          name: userData.name,
+          picture: userData.picture,
+        })
+
+        const response = await fetch(`${BACKEND_URL}/api/google-login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: userData.email,
+            name: userData.name || "",
+            picture: userData.picture || "",
+          }),
+        })
+
+        console.log("📊 백엔드 응답 상태:", response.status, response.statusText)
+        console.log("📊 Content-Type:", response.headers.get("content-type"))
+
+        // ✅ 응답을 먼저 텍스트로 읽기
+        const responseText = await response.text()
+        console.log("📝 원본 응답:", responseText.substring(0, 500))
+
+        // ✅ JSON 파싱 시도
+        let backendResponse
+        try {
+          backendResponse = JSON.parse(responseText)
+        } catch (parseError) {
+          console.error("❌ JSON 파싱 실패:", parseError)
+          console.error("❌ 받은 텍스트:", responseText)
+          throw new Error("백엔드에서 유효한 JSON을 반환하지 않았습니다")
+        }
+
+        console.log("📝 백엔드 응답 파싱됨:", backendResponse)
+
+        if (!response.ok) {
+          throw new Error(backendResponse.msg || `HTTP Error: ${response.status}`)
+        }
+
+        if (backendResponse.success) {
+          // ✅ 백엔드에서 받은 사용자 정보로 상태 업데이트
+          const userWithBackendData = {
+            ...backendResponse.user,
+            email: backendResponse.user.email,
+            username: backendResponse.user.username,
+            picture: backendResponse.user.picture || userData.picture,
+          }
+
+          console.log("✅ 로그인 성공, 사용자 정보:", userWithBackendData)
+          setUser(userWithBackendData)
+
+          // ✅ localStorage에 저장
+          localStorage.setItem("googleUser", JSON.stringify(userWithBackendData))
+          localStorage.setItem("userEmail", userWithBackendData.email)
+          localStorage.setItem("userId", userWithBackendData.email)
+        } else {
+          throw new Error(backendResponse.msg || "로그인 실패")
+        }
+      } catch (error) {
+        console.error("❌ Google 로그인 처리 오류:", error)
+        console.error("❌ 에러 상세:", (error as Error).message)
+        setUser(null)
+        localStorage.removeItem("googleUser")
       }
-      setUser(fixedUser)
-      // Store user in localStorage for persistence
-      localStorage.setItem("googleUser", JSON.stringify(fixedUser))
     }
 
     const handleGoogleSignInError = (event: CustomEvent<string>) => {
@@ -50,13 +114,13 @@ export function useGoogleAuth() {
       localStorage.removeItem("googleUser")
     }
 
-    // 👇 먼저 localStorage에서 확인
+    // ✅ localStorage에서 저장된 사용자 정보 확인
     if (typeof window !== "undefined") {
       const storedUser = localStorage.getItem("googleUser")
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser)
-          console.log("Stored user:", parsedUser) // 👈 디버깅용
+          console.log("✅ 저장된 사용자 로드:", parsedUser)
           setUser(parsedUser)
         } catch (error) {
           console.error("[v0] Error parsing stored user:", error)
@@ -65,42 +129,30 @@ export function useGoogleAuth() {
       }
     }
 
-    window.addEventListener("googleSignIn", handleGoogleSignIn as EventListener)
-    window.addEventListener("googleSignInError", handleGoogleSignInError as EventListener)
+    window.addEventListener("googleSignIn", handleGoogleSignIn as any)
+    window.addEventListener("googleSignInError", handleGoogleSignInError as any)
 
     return () => {
-      window.removeEventListener("googleSignIn", handleGoogleSignIn as EventListener)
-      window.removeEventListener("googleSignInError", handleGoogleSignInError as EventListener)
+      window.removeEventListener("googleSignIn", handleGoogleSignIn as any)
+      window.removeEventListener("googleSignInError", handleGoogleSignInError as any)
     }
   }, [])
 
   const signOut = useCallback(() => {
     setUser(null)
     localStorage.removeItem("googleUser")
+    localStorage.removeItem("userEmail")
+    localStorage.removeItem("userId")
 
-    // Disable auto-select for next sign-in
     if (typeof window !== "undefined" && window.google) {
       window.google.accounts.id.disableAutoSelect()
     }
-  }, [])
-
-  // Dummy functions for email/password (UI only as requested)
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    console.log("[v0] Email sign-in (dummy):", { email, password })
-    return { user: null, error: "Email sign-in is not implemented yet" }
-  }, [])
-
-  const signUpWithEmail = useCallback(async (email: string, password: string) => {
-    console.log("[v0] Email sign-up (dummy):", { email, password })
-    return { user: null, error: "Email sign-up is not implemented yet" }
   }, [])
 
   return {
     user,
     loading,
     isGoogleLoaded,
-    signInWithEmail,
-    signUpWithEmail,
     signOut,
   }
 }
