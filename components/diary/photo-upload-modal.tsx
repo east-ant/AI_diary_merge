@@ -95,7 +95,7 @@ export function PhotoUploadModal({
       img.src = e.target?.result as string
 
       img.onload = () => {
-        window.EXIF.getData(img, function () {
+        window.EXIF.getData(img, () => {
           const exifData: ExifData = {}
 
           // 촬영 시간 추출
@@ -119,15 +119,17 @@ export function PhotoUploadModal({
             exifData.location = { latitude, longitude }
 
             // ✅ await 대신 then() 사용
-            reverseGeocode(latitude, longitude).then((locationName) => {
-              if (locationName) {
-                exifData.location!.locationName = locationName
-                setExifData({ ...exifData }) // UI 갱신
-              }
-            }).catch((e) => {
-              console.error("Reverse geocoding error:", e)
-            })
-         }
+            reverseGeocode(latitude, longitude)
+              .then((locationName) => {
+                if (locationName) {
+                  exifData.location!.locationName = locationName
+                  setExifData({ ...exifData }) // UI 갱신
+                }
+              })
+              .catch((e) => {
+                console.error("Reverse geocoding error:", e)
+              })
+          }
 
           // 카메라 정보 추출
           const make = window.EXIF.getTag(img, "Make")
@@ -164,18 +166,17 @@ export function PhotoUploadModal({
 
   // 위도/경도 → 도시/국가 이름 변환
   const reverseGeocode = async (lat: number, lon: number): Promise<string | null> => {
-  console.log("📍 Reverse Geocode Input:", { lat, lon })
-  const address = await getKoreanAddress(lat, lon)
-  console.log("📍 Kakao API Returned:", address)
-  return address || null
-}
-
+    console.log("📍 Reverse Geocode Input:", { lat, lon })
+    const address = await getKoreanAddress(lat, lon)
+    console.log("📍 Kakao API Returned:", address)
+    return address || null
+  }
 
   // AI 이미지 분석으로 키워드 추천
   const analyzeImage = async (imageData: string) => {
     setIsAnalyzing(true)
     try {
-      const response = await fetch("/api/analyze-image", {
+      const response = await fetch("/diary/api/analyze-image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -12,8 +11,9 @@
   --card-foreground: oklch(0.2 0.02 30);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.2 0.02 30);
-  --primary: oklch(0.45 0.12 15); /* Warm terracotta/coral */
-  --primary-foreground: oklch(0.98 0.01 45);
+  /* Changed primary color from reddish terracotta to black to match diary section */
+  --primary: oklch(0.205 0 0); /* Black for buttons */
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.94 0.02 45); /* Soft cream */
   --secondary-foreground: oklch(0.45 0.12 15);
   --muted: oklch(0.96 0.01 45); /* Very light cream */
@@ -33,14 +33,14 @@
   --radius: 1rem; /* More rounded for diary aesthetic */
   --sidebar: oklch(0.98 0.01 45);
   --sidebar-foreground: oklch(0.2 0.02 30);
-  --sidebar-primary: oklch(0.45 0.12 15);
+  /* Updated sidebar primary to match new black primary color */
+  --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.98 0.01 45);
   --sidebar-accent: oklch(0.94 0.02 45);
   --sidebar-accent-foreground: oklch(0.45 0.12 15);
   --sidebar-border: oklch(0.9 0.02 45);
   --sidebar-ring: oklch(0.45 0.12 15);
 }
-
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -90,4 +90,57 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+}
+
+/* Added custom font-face declarations from diary section */
+@font-face {
+  font-family: "Cafe24Shiningstar";
+  src: url("/fonts/Cafe24Shiningstar-v2.0.woff2") format("woff2"), url("/fonts/Cafe24Shiningstar-v2.0.woff")
+    format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "인천교육자람";
+  src: url("/fonts/인천교육자람.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "memomentKkukkkuk";
+  src: url("/fonts/memomentKkukkkuk.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "온글잎 의연체";
+  src: url("/fonts/온글잎 의연체.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "PretendardVariable";
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Added timeline connector styles from diary section */
+.timeline-connector {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    hsl(var(--border)) 20%,
+    hsl(var(--border)) 80%,
+    transparent 100%
+  );
 }

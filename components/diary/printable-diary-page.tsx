@@ -4,7 +4,6 @@ import type React from "react"
 import { useRef, useState } from "react"
 import { ImageIcon, Upload, X, Printer, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getKoreanAddress } from "@/lib/diary/utils" 
 
 interface ExifData {
   timestamp?: Date
@@ -48,7 +47,7 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
     Array<{ id: string; src: string; x: number; y: number; width: number; height: number }>
   >([])
   const [uploadedPhotos, setUploadedPhotos] = useState<Array<{ id: string; src: string }>>([
-    { id: 'default-1', src: '/emotion/book.png' },
+    { id: "default-1", src: "/emotion/book.png" },
   ])
   const [draggedPhotoSrc, setDraggedPhotoSrc] = useState<string | null>(null)
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null)
@@ -85,7 +84,7 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
 
     // Calculate position relative to the page, centered under cursor
     // Convert mm to pixels for positioning (assuming 96 DPI: 1mm ≈ 3.78px)
-    const defaultWidthPx = 20 * 3.78  // 80mm in pixels
+    const defaultWidthPx = 20 * 3.78 // 80mm in pixels
     const defaultHeightPx = 20 * 3.78 // 80mm in pixels
 
     // Center the photo under the cursor
@@ -227,7 +226,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
               <option value="memomentKkukkkuk">메모먼트 꾹꾹체</option>
               <option value="온글잎 의연체">온잎글 의연체</option>
               <option value="PretendardVariable">프리텐다드</option>
-
             </select>
           </div>
 
@@ -291,7 +289,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
             onDrop={handlePageDrop}
             onDragOver={(e) => e.preventDefault()}
             onMouseMove={handlePageMouseMove}
-
             style={{
               width: "210mm",
               minHeight: "297mm",

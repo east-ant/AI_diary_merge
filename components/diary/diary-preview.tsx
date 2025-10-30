@@ -61,7 +61,7 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
       paragraph += `At ${location}, I captured this wonderful moment. `
       paragraph += `The scene was filled with ${keywords}. `
       paragraph += `It was truly a memorable experience that I'll cherish forever.`
-      
+
       diary += paragraph + "\n\n"
     })
     return diary.trim() // 👈 마지막에 불필요한 공백을 제거합니다.
@@ -70,7 +70,7 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
   const generateDiary = async () => {
     setIsGenerating(true)
     try {
-      const response = await fetch("/api/generate-diary", {
+      const response = await fetch("/diary/api/generate-diary", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -217,7 +217,7 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
               </div>
             ) : (
               <div className="min-h-[400px] p-4">
-                 <textarea
+                <textarea
                   value={generatedDiary}
                   onChange={(e) => setGeneratedDiary(e.target.value)}
                   className="w-full h-full min-h-[400px] bg-transparent border-0 focus:ring-0 resize-none text-sm text-foreground whitespace-pre-wrap"
