@@ -234,7 +234,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ✅ [POST] 이미지 업로드 (userId 포함)
 app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
     const { userId, keywords, tempSlotId } = req.body;
@@ -242,24 +241,27 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "userId가 필요합니다." });
     }
 
+    // ✅ 이미지 URL 생성 (앞에 /를 포함해야 함!)
     const imageUrl = "/uploads/" + req.file.filename;
     const exifData = await extractImgInfo(req.file.path);
 
-    // ✅ images 컬렉션에 저장 (keywords와 tempSlotId 포함)
+    // ✅ images 컬렉션에 저장
     const result = await imagesCollection.insertOne({
       userId,
-      imageUrl,
+      imageUrl,  // "/uploads/123456.jpg" 형식
       keywords: keywords ? JSON.parse(keywords) : [],
       tempSlotId: tempSlotId || Date.now().toString(),
       exifData,
-      usedInDiary: false, // 아직 다이어리에 포함되지 않음
+      usedInDiary: false,
       createdAt: new Date(),
     });
+
+    console.log("✅ 이미지 저장 완료:", imageUrl);  // 디버깅용
 
     res.json({ 
       message: "✅ 업로드 성공", 
       imageId: result.insertedId,
-      imageUrl, 
+      imageUrl,  // "/uploads/123456.jpg" 형식으로 반환
       exifData,
       tempSlotId: tempSlotId || Date.now().toString()
     });

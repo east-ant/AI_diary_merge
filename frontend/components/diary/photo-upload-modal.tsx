@@ -7,6 +7,8 @@ import { X, Upload, Camera, Loader2, Sparkles, MapPin, Clock } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { uploadImage, getUserId } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
 
 // EXIF.js 라이브러리 타입 선언
 declare global {
@@ -18,7 +20,7 @@ declare global {
 interface PhotoUploadModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (photo: string, keywords: string[], exifData?: ExifData) => void
+  onSave: (photo: string, keywords: string[], exifData?: ExifData, imageId?: string) => void
   existingPhoto?: string
   existingKeywords?: string[]
   existingExifData?: ExifData
@@ -61,14 +63,17 @@ export function PhotoUploadModal({
   existingExifData,
 }: PhotoUploadModalProps) {
   const [photo, setPhoto] = useState<string | null>(existingPhoto || null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(existingKeywords)
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>(fallbackKeywords)
   const [customKeyword, setCustomKeyword] = useState("")
   const [isDragging, setIsDragging] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [exifData, setExifData] = useState<ExifData | undefined>(existingExifData)
   const [isExtractingExif, setIsExtractingExif] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
 
   // EXIF 메타데이터 추출 (촬영 시간, GPS, 카메라 정보)
   const extractExifData = useCallback((file: File): Promise<ExifData> => {
@@ -203,6 +208,7 @@ export function PhotoUploadModal({
   const handleFileSelect = useCallback(
     async (file: File) => {
       if (file && file.type.startsWith("image/")) {
+        setSelectedFile(file)
         const reader = new FileReader()
         reader.onload = async (e) => {
           const imageData = e.target?.result as string
@@ -252,8 +258,73 @@ export function PhotoUploadModal({
     }
   }
 
-  const handleSave = () => {
-    if (photo) {
+  const handleSave = async () => {
+    if (!photo) return
+
+    // ✅ 새로운 이미지인 경우 백엔드에 업로드
+    if (selectedFile) {
+      setIsUploading(true)
+      
+      const userId = getUserId()
+      if (!userId) {
+        toast({
+          title: "로그인 필요",
+          description: "이미지를 업로드하려면 로그인이 필요합니다.",
+          variant: "destructive",
+        })
+        setIsUploading(false)
+        return
+      }
+
+      try {
+        const tempSlotId = Date.now().toString()
+        const response = await uploadImage({
+          userId,
+          image: selectedFile,
+          keywords: selectedKeywords,
+          tempSlotId,
+        })
+
+        if (response.success && response.data) {
+          // 백엔드에서 반환한 이미지 URL 처리
+          const backendImageUrl = response.data.imageUrl
+          let fullImageUrl = backendImageUrl
+
+          // 상대 경로인 경우 절대 경로로 변환
+          if (!backendImageUrl.startsWith('http')) {
+            const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'
+            fullImageUrl = `${apiBaseUrl}${backendImageUrl}`
+          }
+
+          console.log('📸 Image URL:', fullImageUrl)  // 디버깅용
+
+          onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
+          
+          onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
+          
+          toast({
+            title: "업로드 성공",
+            description: "이미지가 성공적으로 업로드되었습니다.",
+          })
+        } else {
+          toast({
+            title: "업로드 실패",
+            description: response.error || "이미지 업로드에 실패했습니다.",
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        console.error("Upload error:", error)
+        toast({
+          title: "업로드 오류",
+          description: "이미지 업로드 중 오류가 발생했습니다.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsUploading(false)
+      }
+    } else {
+      // 기존 이미지 수정인 경우
       onSave(photo, selectedKeywords, exifData)
     }
   }
@@ -336,10 +407,10 @@ export function PhotoUploadModal({
                     <span className="text-foreground">
                       {exifData.timestamp.toLocaleString("ko-KR", {
                         year: "numeric",
-                        month: "long", // 예: 10월
-                        day: "numeric", // 예: 15일
-                        hour: "2-digit", // 예: 13시
-                        minute: "2-digit", // 예: 05분
+                        month: "long",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </span>
                   </div>
@@ -451,15 +522,20 @@ export function PhotoUploadModal({
 
               {/* 저장/취소 버튼 */}
               <div className="flex justify-end space-x-3">
-                <Button variant="outline" onClick={onClose}>
+                <Button variant="outline" onClick={onClose} disabled={isUploading}>
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSave}
                   className="bg-primary hover:bg-primary/90"
-                  disabled={isAnalyzing || isExtractingExif}
+                  disabled={isAnalyzing || isExtractingExif || isUploading}
                 >
-                  {isAnalyzing || isExtractingExif ? (
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : isAnalyzing || isExtractingExif ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       {isExtractingExif ? "Processing..." : "Analyzing..."}

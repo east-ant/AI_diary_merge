@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { loadGoogleScript, initializeGoogleAuth, type GoogleUser } from "@/lib/google-auth"
+import { googleLogin, clearUserData } from "@/lib/api-client"
 
 export function useGoogleAuth() {
   const [user, setUser] = useState<GoogleUser | null>(null)
@@ -31,7 +32,7 @@ export function useGoogleAuth() {
 
   // Listen for Google sign-in events
   useEffect(() => {
-    const handleGoogleSignIn = (event: CustomEvent<GoogleUser>) => {
+    const handleGoogleSignIn = async (event: CustomEvent<GoogleUser>) => {
       const userData = event.detail
       // 👇 한글 이름 UTF-8 인코딩 확인
       const fixedUser = {
@@ -39,6 +40,24 @@ export function useGoogleAuth() {
         name: userData.name || '',
         email: userData.email || ''
       }
+      
+      // ✅ 백엔드에 Google 로그인 정보 전송
+      try {
+        const response = await googleLogin({
+          email: fixedUser.email,
+          name: fixedUser.name,
+          picture: fixedUser.picture,
+        })
+        
+        if (response.success) {
+          console.log("✅ 백엔드에 사용자 정보 저장 완료")
+        } else {
+          console.error("❌ 백엔드 저장 실패:", response.error)
+        }
+      } catch (error) {
+        console.error("❌ 백엔드 연동 오류:", error)
+      }
+      
       setUser(fixedUser)
       // Store user in localStorage for persistence
       localStorage.setItem("googleUser", JSON.stringify(fixedUser))
@@ -48,6 +67,7 @@ export function useGoogleAuth() {
       console.error("[v0] Google Sign-In error:", event.detail)
       setUser(null)
       localStorage.removeItem("googleUser")
+      clearUserData()
     }
 
     // 👇 먼저 localStorage에서 확인
@@ -61,6 +81,7 @@ export function useGoogleAuth() {
         } catch (error) {
           console.error("[v0] Error parsing stored user:", error)
           localStorage.removeItem("googleUser")
+          clearUserData()
         }
       }
     }
@@ -77,6 +98,7 @@ export function useGoogleAuth() {
   const signOut = useCallback(() => {
     setUser(null)
     localStorage.removeItem("googleUser")
+    clearUserData()
 
     // Disable auto-select for next sign-in
     if (typeof window !== "undefined" && window.google) {

@@ -7,6 +7,9 @@ import { Card } from "@/components/ui/card"
 import { PhotoUploadModal } from "@/components/diary/photo-upload-modal"
 import { DiaryPreview } from "@/components/diary/diary-preview"
 import { Sidebar } from "@/components/diary/sidebar"
+import { getUserId, getDiaries, createDiary, deleteDiary as deleteDiaryApi, type Diary as ApiDiary, type PhotoSlot as ApiPhotoSlot } from "@/lib/api-client"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 interface ExifData {
   timestamp?: Date
@@ -46,98 +49,107 @@ const timeSlots = [
   { id: "evening", label: "Evening", icon: Moon },
 ] as const
 
-const DIARIES_STORAGE_KEY = "travel-diaries"
-const CURRENT_DIARY_KEY = "current-diary-id"
-
 export default function TravelDiary() {
   const [diaries, setDiaries] = useState<Diary[]>([])
   const [currentDiaryId, setCurrentDiaryId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showNewDiaryDialog, setShowNewDiaryDialog] = useState(false)
   const [newDiaryTitle, setNewDiaryTitle] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
   const [photoSlots, setPhotoSlots] = useState<PhotoSlot[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
   const [showPreview, setShowPreview] = useState(false)
 
+  const { toast } = useToast()
+  const router = useRouter()
+
+  // ✅ 로그인 체크 및 다이어리 불러오기
   useEffect(() => {
-    const savedDiaries = localStorage.getItem(DIARIES_STORAGE_KEY)
-    const savedCurrentId = localStorage.getItem(CURRENT_DIARY_KEY)
+    const userId = getUserId()
+    if (!userId) {
+      // 로그인 안 된 사용자는 로그인 페이지로 리다이렉트
+      router.push("/login")
+      return
+    }
 
-    if (savedDiaries) {
-      try {
-        const parsedDiaries = JSON.parse(savedDiaries)
-        const processedDiaries = parsedDiaries.map((diary: Diary) => ({
-          ...diary,
-          photoSlots: diary.photoSlots.map((slot: any) => ({
+    loadDiaries()
+  }, [router])
+
+  // ✅ 백엔드에서 다이어리 목록 불러오기
+  const loadDiaries = async () => {
+    setIsLoading(true)
+    const userId = getUserId()
+    if (!userId) return
+
+    try {
+      const response = await getDiaries(userId)
+      
+      if (response.success && response.data) {
+        const loadedDiaries: Diary[] = response.data.map((diary: ApiDiary) => ({
+          id: diary._id || diary.id || "",
+          title: diary.title,
+          date: diary.date,
+          photoSlots: diary.photoSlots.map((slot: ApiPhotoSlot) => ({
             ...slot,
-            exifData: slot.exifData
-              ? {
-                  ...slot.exifData,
-                  timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
-                }
-              : undefined,
+            exifData: slot.exifData ? {
+              ...slot.exifData,
+              timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
+            } : undefined,
           })),
+          createdAt: typeof diary.createdAt === 'number' ? diary.createdAt : new Date(diary.createdAt).getTime(),
         }))
-        setDiaries(processedDiaries)
 
-        if (savedCurrentId && processedDiaries.find((d: Diary) => d.id === savedCurrentId)) {
-          setCurrentDiaryId(savedCurrentId)
-          const currentDiary = processedDiaries.find((d: Diary) => d.id === savedCurrentId)
-          if (currentDiary) {
-            setPhotoSlots(currentDiary.photoSlots)
-          }
-        } else if (processedDiaries.length > 0) {
-          setCurrentDiaryId(processedDiaries[0].id)
-          setPhotoSlots(processedDiaries[0].photoSlots)
+        setDiaries(loadedDiaries)
+
+        // 가장 최근 다이어리를 현재 다이어리로 설정
+        if (loadedDiaries.length > 0) {
+          setCurrentDiaryId(loadedDiaries[0].id)
+          setPhotoSlots(loadedDiaries[0].photoSlots)
         } else {
+          // 다이어리가 없으면 새로 생성
           createNewDiary()
         }
-      } catch (error) {
-        console.error("Failed to load saved diaries:", error)
-        createNewDiary()
+      } else {
+        toast({
+          title: "불러오기 실패",
+          description: response.error || "다이어리를 불러올 수 없습니다.",
+          variant: "destructive",
+        })
       }
-    } else {
-      createNewDiary()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (currentDiaryId) {
-      setDiaries((prevDiaries) => {
-        const updatedDiaries = prevDiaries.map((diary) =>
-          diary.id === currentDiaryId ? { ...diary, photoSlots, date: new Date().toLocaleDateString() } : diary,
-        )
-        localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updatedDiaries))
-        return updatedDiaries
+    } catch (error) {
+      console.error("Load diaries error:", error)
+      toast({
+        title: "오류",
+        description: "다이어리를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive",
       })
+    } finally {
+      setIsLoading(false)
     }
-  }, [photoSlots, currentDiaryId])
+  }
 
+  // ✅ 새 다이어리 생성 (로컬에서만 임시로)
   const createNewDiary = () => {
     setShowNewDiaryDialog(true)
     setNewDiaryTitle(`여행 일기 ${new Date().toLocaleDateString()}`)
   }
 
+  // ✅ 새 다이어리 확정 생성
   const confirmCreateDiary = () => {
     const title = newDiaryTitle.trim() || `여행 일기 ${new Date().toLocaleDateString()}`
 
     const newDiary: Diary = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`, // 임시 ID
       title: title,
       date: new Date().toLocaleDateString(),
       photoSlots: [{ id: "1", keywords: [], timeSlot: "morning", timestamp: Date.now() }],
       createdAt: Date.now(),
     }
 
-    setDiaries((prev) => {
-      const updated = [...prev, newDiary]
-      localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updated))
-      return updated
-    })
+    setDiaries((prev) => [newDiary, ...prev])
     setCurrentDiaryId(newDiary.id)
-    localStorage.setItem(CURRENT_DIARY_KEY, newDiary.id)
     setPhotoSlots(newDiary.photoSlots)
     setCurrentStep(1)
     setShowPreview(false)
@@ -152,11 +164,11 @@ export default function TravelDiary() {
     setNewDiaryTitle("")
   }
 
+  // ✅ 다이어리 선택
   const selectDiary = (diaryId: string) => {
     const diary = diaries.find((d) => d.id === diaryId)
     if (diary) {
       setCurrentDiaryId(diaryId)
-      localStorage.setItem(CURRENT_DIARY_KEY, diaryId)
       setPhotoSlots(diary.photoSlots)
       setCurrentStep(1)
       setShowPreview(false)
@@ -187,12 +199,14 @@ export default function TravelDiary() {
     setPhotoSlots([...photoSlots, newSlot])
   }
 
-  const updatePhotoSlot = (slotId: string, photo: string, keywords: string[], exifData?: ExifData) => {
+  // ✅ 사진 슬롯 업데이트 (이미지 ID 포함)
+  const updatePhotoSlot = (slotId: string, photo: string, keywords: string[], exifData?: ExifData, imageId?: string) => {
     setPhotoSlots((slots) => {
       const updatedSlots = slots.map((slot) =>
         slot.id === slotId
           ? {
               ...slot,
+              id: imageId || slot.id, // 백엔드 이미지 ID로 업데이트
               photo,
               keywords,
               exifData,
@@ -255,31 +269,122 @@ export default function TravelDiary() {
     return getCompletedPhotos().length > 0
   }
 
-  const handleNextStep = () => {
+  // ✅ 검토 단계로 이동 전에 백엔드에 저장
+  const handleNextStep = async () => {
     if (currentStep === 1 && canProceedToReview()) {
+      const userId = getUserId()
+      if (!userId) {
+        toast({
+          title: "로그인 필요",
+          description: "다이어리를 저장하려면 로그인이 필요합니다.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // 임시 다이어리인 경우 백엔드에 저장
+      if (currentDiaryId?.startsWith('temp-')) {
+        try {
+          const photoSlotIds = photoSlots
+            .filter(slot => slot.photo && !slot.id.startsWith('temp'))
+            .map(slot => slot.id)
+
+          const response = await createDiary({
+            userId,
+            title: getCurrentDiaryTitle(),
+            date: new Date().toLocaleDateString(),
+            photoSlotIds,
+          })
+
+          if (response.success && response.data) {
+            // 백엔드에서 생성된 다이어리로 업데이트
+            const newDiary: Diary = {
+              id: response.data._id || response.data.id || "",
+              title: response.data.title,
+              date: response.data.date,
+              photoSlots: response.data.photoSlots,
+              createdAt: typeof response.data.createdAt === 'number' 
+                ? response.data.createdAt 
+                : new Date(response.data.createdAt).getTime(),
+            }
+
+            setDiaries(prev => prev.map(d => d.id === currentDiaryId ? newDiary : d))
+            setCurrentDiaryId(newDiary.id)
+
+            toast({
+              title: "저장 완료",
+              description: "다이어리가 저장되었습니다.",
+            })
+          }
+        } catch (error) {
+          console.error("Save diary error:", error)
+          toast({
+            title: "저장 실패",
+            description: "다이어리 저장 중 오류가 발생했습니다.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
       setCurrentStep(2)
       setShowPreview(true)
     }
   }
 
-  const deleteDiary = (diaryId: string) => {
-    setDiaries((prevDiaries) => {
-      const updatedDiaries = prevDiaries.filter((d) => d.id !== diaryId)
-      localStorage.setItem(DIARIES_STORAGE_KEY, JSON.stringify(updatedDiaries))
-
+  // ✅ 다이어리 삭제
+  const handleDeleteDiary = async (diaryId: string) => {
+    if (diaryId.startsWith('temp-')) {
+      // 임시 다이어리는 로컬에서만 삭제
+      setDiaries(prev => prev.filter(d => d.id !== diaryId))
+      
       if (currentDiaryId === diaryId) {
-        if (updatedDiaries.length > 0) {
-          const newCurrentDiary = updatedDiaries[0]
-          setCurrentDiaryId(newCurrentDiary.id)
-          localStorage.setItem(CURRENT_DIARY_KEY, newCurrentDiary.id)
-          setPhotoSlots(newCurrentDiary.photoSlots)
+        const remaining = diaries.filter(d => d.id !== diaryId)
+        if (remaining.length > 0) {
+          setCurrentDiaryId(remaining[0].id)
+          setPhotoSlots(remaining[0].photoSlots)
         } else {
-          setTimeout(() => createNewDiary(), 100)
+          createNewDiary()
         }
       }
+      return
+    }
 
-      return updatedDiaries
-    })
+    try {
+      const response = await deleteDiaryApi(diaryId)
+      
+      if (response.success) {
+        setDiaries(prev => prev.filter(d => d.id !== diaryId))
+        
+        if (currentDiaryId === diaryId) {
+          const remaining = diaries.filter(d => d.id !== diaryId)
+          if (remaining.length > 0) {
+            setCurrentDiaryId(remaining[0].id)
+            setPhotoSlots(remaining[0].photoSlots)
+          } else {
+            createNewDiary()
+          }
+        }
+
+        toast({
+          title: "삭제 완료",
+          description: "다이어리가 삭제되었습니다.",
+        })
+      } else {
+        toast({
+          title: "삭제 실패",
+          description: response.error || "다이어리 삭제에 실패했습니다.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Delete diary error:", error)
+      toast({
+        title: "오류",
+        description: "다이어리 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   const sortedPhotoSlots = sortPhotosByTime(photoSlots)
@@ -293,20 +398,31 @@ export default function TravelDiary() {
 
   const getTimeEmoji = (slot: PhotoSlot) => {
     if (!slot.photo || !slot.exifData?.timestamp) {
-      return null // No emoji for empty slots
+      return null
     }
 
     const hour = slot.exifData.timestamp.getHours()
 
     if (hour >= 5 && hour < 12) {
-      return Sun // Morning
+      return Sun
     } else if (hour >= 12 && hour < 17) {
-      return Sun // Afternoon
+      return Sun
     } else if (hour >= 17 && hour < 20) {
-      return Sunset // Evening
+      return Sunset
     } else {
-      return Moon // Night
+      return Moon
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -316,10 +432,10 @@ export default function TravelDiary() {
         currentDiaryId={currentDiaryId}
         onSelectDiary={selectDiary}
         onNewDiary={createNewDiary}
-        onDeleteDiary={deleteDiary}
+        onDeleteDiary={handleDeleteDiary}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-         onNavigateToDashboard={() => (window.location.href = "/")}
+        onNavigateToDashboard={() => router.push("/")}
       />
 
       <div
@@ -597,8 +713,8 @@ export default function TravelDiary() {
           <PhotoUploadModal
             isOpen={!!selectedSlot}
             onClose={() => setSelectedSlot(null)}
-            onSave={(photo, keywords, exifData) => {
-              updatePhotoSlot(selectedSlot, photo, keywords, exifData)
+            onSave={(photo, keywords, exifData, imageId) => {
+              updatePhotoSlot(selectedSlot, photo, keywords, exifData, imageId)
               setSelectedSlot(null)
             }}
             existingPhoto={photoSlots.find((slot) => slot.id === selectedSlot)?.photo}
