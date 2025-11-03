@@ -27,7 +27,7 @@ interface PhotoUploadModalProps {
 }
 
 interface ExifData {
-  timestamp?: Date
+  timestamp?: Date | string
   location?: {
     latitude: number
     longitude: number
@@ -286,19 +286,12 @@ export function PhotoUploadModal({
         })
 
         if (response.success && response.data) {
-          // 백엔드에서 반환한 이미지 URL 처리
+          // 백엔드에서 반환한 이미지 URL과 ID 사용
           const backendImageUrl = response.data.imageUrl
-          let fullImageUrl = backendImageUrl
-
-          // 상대 경로인 경우 절대 경로로 변환
-          if (!backendImageUrl.startsWith('http')) {
-            const apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'
-            fullImageUrl = `${apiBaseUrl}${backendImageUrl}`
-          }
-
-          console.log('📸 Image URL:', fullImageUrl)  // 디버깅용
-
-          onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
+          // 백엔드 URL이 상대 경로인 경우 절대 경로로 변환
+          const fullImageUrl = backendImageUrl.startsWith('http') 
+            ? backendImageUrl 
+            : `http://localhost:3001${backendImageUrl}`
           
           onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
           

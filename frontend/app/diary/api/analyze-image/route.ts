@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No image data provided" }, { status: 400 })
     }
 
-    // Use AI to analyze the image and generate keywords
+    // AI가 이미지를 분석해 여행 관련 키워드를 한국어로 생성
     const result = await generateText({
       model: openai("gpt-4o-mini"),
       messages: [
@@ -19,15 +19,33 @@ export async function POST(request: NextRequest) {
           content: [
             {
               type: "text",
-              text: `Analyze this travel photo and suggest 8-12 relevant keywords that describe what you see. Focus on: activities, locations, objects, food, transportation, architecture, nature, culture, and experiences. Return keywords that would be useful for organizing a travel diary.
+              text: `
+You are analyzing a travel-related image.  
+Your task is to carefully examine the image and generate **8–12 short Korean keywords** that describe what you see.
 
-Return your response as a JSON object with this exact structure:
+Focus on the following aspects:
+- Activities or actions
+- Locations or landmarks
+- Objects and items
+- Food or drink
+- Transportation
+- Architecture or structures
+- Nature and scenery
+- Culture or traditions
+- Atmosphere or emotions
+
+### Output format:
+Return **only** a valid JSON object in this format:
 {
-  "keywords": ["keyword1", "keyword2", ...],
+  "keywords": ["키워드1", "키워드2", ...],
   "confidence": 0.95
 }
 
-Only return the JSON object, no additional text.`,
+### Requirements:
+- All keywords **must be written in Korean** (short nouns or noun phrases, e.g. “비행기”, “파란 하늘”, “바닷가 산책”).
+- Do **not** include any explanations, comments, or text outside the JSON.
+- Do not translate the prompt itself, only the output keywords.
+              `,
             },
             {
               type: "image",
@@ -36,10 +54,10 @@ Only return the JSON object, no additional text.`,
           ],
         },
       ],
-      maxTokens: 500,
+      maxTokens: 200,
     })
 
-    // Parse the JSON response
+    // JSON 파싱
     const jsonMatch = result.text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       throw new Error("Failed to parse JSON from response")

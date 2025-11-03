@@ -6,7 +6,7 @@ import { ImageIcon, Upload, X, Printer, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface ExifData {
-  timestamp?: Date
+  timestamp?: Date | string  // ✅ string도 허용
   location?: {
     latitude: number
     longitude: number
@@ -32,6 +32,24 @@ interface PrintableDiaryPageProps {
   photoSlots: PhotoSlot[]
   diaryText: string
   title: string
+}
+
+// ✅ Helper 함수: timestamp를 Date 객체로 변환
+function getDateFromTimestamp(timestamp: Date | string | undefined): Date | null {
+  if (!timestamp) return null
+  
+  if (timestamp instanceof Date) {
+    return timestamp
+  }
+  
+  // 문자열인 경우 Date로 변환
+  try {
+    const date = new Date(timestamp)
+    if (isNaN(date.getTime())) return null
+    return date
+  } catch {
+    return null
+  }
 }
 
 export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDiaryPageProps) {
@@ -66,7 +84,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
       reader.readAsDataURL(file)
     })
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -82,12 +99,9 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
 
     const rect = pageRef.current.getBoundingClientRect()
 
-    // Calculate position relative to the page, centered under cursor
-    // Convert mm to pixels for positioning (assuming 96 DPI: 1mm ≈ 3.78px)
-    const defaultWidthPx = 20 * 3.78 // 80mm in pixels
-    const defaultHeightPx = 20 * 3.78 // 80mm in pixels
+    const defaultWidthPx = 20 * 3.78
+    const defaultHeightPx = 20 * 3.78
 
-    // Center the photo under the cursor
     const x = e.clientX - rect.left - defaultWidthPx / 2
     const y = e.clientY - rect.top - defaultHeightPx / 2
 
@@ -98,8 +112,8 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
         src: draggedPhotoSrc,
         x,
         y,
-        width: 20, // Default width in mm
-        height: 20, // Default height in mm
+        width: 20,
+        height: 20,
       },
     ])
 
@@ -116,7 +130,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
     const rect = pageRef.current.getBoundingClientRect()
 
     setDraggingPhotoId(photoId)
-    // Calculate offset from cursor to photo's top-left corner
     setDragOffset({
       x: e.clientX - rect.left - photo.x,
       y: e.clientY - rect.top - photo.y,
@@ -128,7 +141,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
 
     const rect = pageRef.current.getBoundingClientRect()
 
-    // Calculate new position accounting for the drag offset
     const x = e.clientX - rect.left - dragOffset.x
     const y = e.clientY - rect.top - dragOffset.y
 
@@ -152,19 +164,16 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
     if (!selection || selection.rangeCount === 0) return
 
     const range = selection.getRangeAt(0)
-    if (range.collapsed) return // No text selected
+    if (range.collapsed) return
 
-    // Create a span with the color
     const span = document.createElement("span")
     span.style.color = color
 
     try {
-      // Wrap the selected content in the span
       const contents = range.extractContents()
       span.appendChild(contents)
       range.insertNode(span)
 
-      // Clear selection
       selection.removeAllRanges()
     } catch (error) {
       console.error("Error applying color:", error)
@@ -198,7 +207,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
     html2pdf().set(opt).from(element).save()
   }
 
-  // Split diary text into paragraphs
   const paragraphs = diaryText.split("\n\n").filter((p) => p.trim())
 
   return (
@@ -320,7 +328,10 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
                 const isEven = index % 2 === 0
                 const paragraph = paragraphs[index] || ""
                 const location = slot.exifData?.location?.locationName
-                const time = slot.exifData?.timestamp?.toLocaleTimeString([], {
+                
+                // ✅ 수정: timestamp를 안전하게 처리
+                const timestampDate = getDateFromTimestamp(slot.exifData?.timestamp)
+                const time = timestampDate?.toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })
@@ -332,8 +343,8 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
                       <div
                         className="bg-white p-1.5 shadow-lg transform rotate-[-2deg] hover:rotate-0 transition-transform"
                         style={{
-                          width: "60mm", // 변경된 사진 가로 크기
-                          height: "80mm", // 변경된 사진 세로 크기 (3:4 비율 유지)
+                          width: "60mm",
+                          height: "80mm",
                         }}
                       >
                         <img
@@ -424,7 +435,6 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
             </div>
 
             {decorationPhotos.map((photo) => {
-              // Convert mm to pixels for display (1mm ≈ 3.78px at 96 DPI)
               const widthPx = photo.width * 3.78
               const heightPx = photo.height * 3.78
 

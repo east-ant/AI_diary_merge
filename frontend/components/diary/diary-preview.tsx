@@ -1,13 +1,16 @@
 "use client"
 
+//diary-preview.tsx
+
 import { useState } from "react"
 import { ArrowLeft, Download, Share2, Loader2, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { PrintableDiaryPage } from "@/components/diary/printable-diary-page"
 
+// ✅ timestamp를 Date | string으로 수정
 interface ExifData {
-  timestamp?: Date
+  timestamp?: Date | string
   location?: {
     latitude: number
     longitude: number
@@ -47,12 +50,19 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
       return "No photos to create a diary from. Please add some photos first!"
     }
 
-    let diary = "" // 👈 빈 문자열로 시작하도록 수정
+    let diary = ""
 
     photosWithContent.forEach((slot, index) => {
-      const timeStr = slot.exifData?.timestamp
-        ? new Date(slot.exifData.timestamp).toLocaleString()
-        : `${slot.timeSlot.charAt(0).toUpperCase() + slot.timeSlot.slice(1)}`
+      // ✅ timestamp 안전하게 처리
+      let timeStr = ""
+      if (slot.exifData?.timestamp) {
+        const date = slot.exifData.timestamp instanceof Date 
+          ? slot.exifData.timestamp 
+          : new Date(slot.exifData.timestamp)
+        timeStr = date.toLocaleString()
+      } else {
+        timeStr = `${slot.timeSlot.charAt(0).toUpperCase() + slot.timeSlot.slice(1)}`
+      }
 
       const location = slot.exifData?.location?.locationName || "예쁜 장소"
       const keywords = slot.keywords.length > 0 ? slot.keywords.join(", ") : "아름다운 풍경"
@@ -64,7 +74,7 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
 
       diary += paragraph + "\n\n"
     })
-    return diary.trim() // 👈 마지막에 불필요한 공백을 제거합니다.
+    return diary.trim()
   }
 
   const generateDiary = async () => {
@@ -81,18 +91,15 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
       if (response.ok) {
         const result = await response.json()
         setGeneratedDiary(result.diary)
-        // setShowPrintable(true) // 👈 제거
       } else {
         console.log("[v0] API failed, using mock diary generation")
         const mockDiary = generateMockDiary()
         setGeneratedDiary(mockDiary)
-        // setShowPrintable(true) // 👈 제거
       }
     } catch (error) {
       console.log("[v0] Error calling API, using mock diary generation:", error)
       const mockDiary = generateMockDiary()
       setGeneratedDiary(mockDiary)
-      // setShowPrintable(true) // 👈 제거
     } finally {
       setIsGenerating(false)
     }

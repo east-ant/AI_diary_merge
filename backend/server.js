@@ -17,6 +17,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "https://ai-diary-merge.vercel.app",
+      "https://ai-diary27.vercel.app",
     ],
     credentials: true,
   })
@@ -278,7 +279,6 @@ app.get("/api/diaries/:userId", async (req, res) => {
   res.json(diaries);
 });
 
-// ✅ [POST] 다이어리 생성 API
 app.post("/api/diaries", async (req, res) => {
   console.log("📥 다이어리 생성 요청:", req.body);
   const { userId, title, date, photoSlotIds } = req.body;
@@ -290,6 +290,9 @@ app.post("/api/diaries", async (req, res) => {
   try {
     // ✅ 1. photoSlotIds로 images 컬렉션에서 사진 가져오기
     let photoSlots = [];
+    
+    console.log("📷 받은 photoSlotIds:", photoSlotIds);
+    
     if (photoSlotIds && photoSlotIds.length > 0) {
       const { ObjectId } = require("mongodb");
       const imageIds = photoSlotIds
@@ -298,10 +301,13 @@ app.post("/api/diaries", async (req, res) => {
           try {
             return new ObjectId(id);
           } catch (e) {
+            console.error(`❌ 잘못된 ObjectId: ${id}`, e);
             return null;
           }
         })
         .filter(id => id !== null);
+
+      console.log("📷 변환된 ObjectIds:", imageIds);
 
       if (imageIds.length > 0) {
         const images = await imagesCollection.find({
@@ -309,6 +315,7 @@ app.post("/api/diaries", async (req, res) => {
         }).toArray();
 
         console.log(`✅ ${images.length}개의 이미지 조회됨`);
+        console.log("📷 조회된 이미지들:", JSON.stringify(images, null, 2));
 
         // ✅ 2. photoSlots 형식으로 변환
         photoSlots = images.map((img, index) => ({
@@ -326,12 +333,18 @@ app.post("/api/diaries", async (req, res) => {
           }
         }));
 
+        console.log("📷 생성된 photoSlots:", JSON.stringify(photoSlots, null, 2));
+
         // ✅ 3. images 컬렉션에서 usedInDiary를 true로 표시
         await imagesCollection.updateMany(
           { _id: { $in: imageIds } },
           { $set: { usedInDiary: true } }
         );
+      } else {
+        console.warn("⚠️ 유효한 imageIds가 없습니다");
       }
+    } else {
+      console.warn("⚠️ photoSlotIds가 비어있습니다");
     }
 
     // ✅ 4. 다이어리 생성
@@ -343,7 +356,11 @@ app.post("/api/diaries", async (req, res) => {
       createdAt: new Date(),
     };
 
+    console.log("📝 저장할 다이어리:", JSON.stringify(newDiary, null, 2));
+
     const result = await diariesCollection.insertOne(newDiary);
+
+    console.log("✅ 다이어리 저장 완료, ID:", result.insertedId);
 
     res.json({
       success: true,
@@ -368,7 +385,7 @@ function getTimeSlot(date) {
   return "evening";
 }
 
-// ✅ [GET] 사용자별 다이어리 목록 조회 API
+// ✅ [GET] 사용자별 다이어리 목록 조회 API (수정됨)
 app.get("/api/diaries/list/:userId", async (req, res) => {
   console.log("📥 다이어리 목록 조회:", req.params.userId);
   const { userId } = req.params;
@@ -380,10 +397,20 @@ app.get("/api/diaries/list/:userId", async (req, res) => {
       .toArray();
 
     console.log(`✅ ${diaries.length}개의 다이어리 조회됨`);
-    res.json(diaries);
+    
+    // 👇 수정된 부분: success와 data로 감싸서 응답
+    res.json({
+      success: true,
+      data: diaries 
+    });
   } catch (err) {
     console.error("❌ 다이어리 조회 오류:", err);
-    res.status(500).json({ error: err.message });
+    
+    // 👇 수정된 부분: success: false 형식으로 응답
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
   }
 });
 
