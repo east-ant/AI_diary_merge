@@ -27,9 +27,9 @@ interface Diary {
 interface SidebarProps {
   diaries: Diary[]
   currentDiaryId: string | null
-  onSelectDiary: (diaryId: string) => void
+  onSelectDiary: (diaryId: string) => void | Promise<void>  // ✅ async 함수 허용
   onNewDiary: () => void
-  onDeleteDiary: (diaryId: string) => void
+  onDeleteDiary: (diaryId: string) => void | Promise<void>  // ✅ async 함수 허용
   isOpen: boolean
   onToggle: () => void
   onNavigateToDashboard: () => void
@@ -40,6 +40,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
   const { user, signOut } = useGoogleAuth()
   const router = useRouter()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)  // ✅ 삭제 로딩 상태 추가
 
   // ✅ localStorage에서 사용자 정보 가져오기
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -60,10 +61,19 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
     setDeleteConfirmId(diaryId)
   }
 
-  const confirmDelete = () => {
+  // ✅ 삭제 확인 후 처리 - async 처리
+  const confirmDelete = async () => {
     if (deleteConfirmId) {
-      onDeleteDiary(deleteConfirmId)
-      setDeleteConfirmId(null)
+      try {
+        setIsDeleting(true)
+        await onDeleteDiary(deleteConfirmId)
+        setDeleteConfirmId(null)
+      } catch (error) {
+        console.error('Failed to delete diary:', error)
+        // 에러 처리 (토스트 메시지 등 추가 가능)
+      } finally {
+        setIsDeleting(false)
+      }
     }
   }
 
@@ -317,14 +327,16 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <Button
                 variant="outline"
                 onClick={cancelDelete}
+                disabled={isDeleting}  // ✅ 삭제 중일 때 버튼 비활성화
               >
                 No
               </Button>
               <Button
                 onClick={confirmDelete}
-                className="bg-red-600 hover:bg-red-700 text-white font-medium"
+                disabled={isDeleting}  // ✅ 삭제 중일 때 버튼 비활성화
+                className="bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Yes
+                {isDeleting ? 'Deleting...' : 'Yes'}
               </Button>
             </div>
           </div>

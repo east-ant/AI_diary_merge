@@ -74,19 +74,19 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
-// Validate ../../app/diary/api/analyze-image/route.ts
+// Validate ../../app/api/analyze-image/route.ts
 {
-  type __IsExpected<Specific extends RouteHandlerConfig<"/diary/api/analyze-image">> = Specific
-  const handler = {} as typeof import("../../app/diary/api/analyze-image/route.js")
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/analyze-image">> = Specific
+  const handler = {} as typeof import("../../app/api/analyze-image/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
 }
 
-// Validate ../../app/diary/api/generate-diary/route.ts
+// Validate ../../app/api/generate-diary/route.ts
 {
-  type __IsExpected<Specific extends RouteHandlerConfig<"/diary/api/generate-diary">> = Specific
-  const handler = {} as typeof import("../../app/diary/api/generate-diary/route.js")
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/generate-diary">> = Specific
+  const handler = {} as typeof import("../../app/api/generate-diary/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

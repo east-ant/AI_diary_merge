@@ -2,11 +2,11 @@
 
 import type React from "react"
 import { useRef, useState } from "react"
-import { ImageIcon, Upload, X, Printer, Download } from "lucide-react"
+import { ImageIcon, Upload, X, Printer, Download, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface ExifData {
-  timestamp?: Date | string  // ✅ string도 허용
+  timestamp?: Date | string
   location?: {
     latitude: number
     longitude: number
@@ -22,6 +22,8 @@ interface ExifData {
 interface PhotoSlot {
   id: string
   photo?: string
+  imageData?: string
+  mimeType?: string
   keywords: string[]
   timeSlot: "morning" | "midday" | "afternoon" | "evening"
   timestamp: number
@@ -32,6 +34,7 @@ interface PrintableDiaryPageProps {
   photoSlots: PhotoSlot[]
   diaryText: string
   title: string
+  onBack?: () => void
 }
 
 // ✅ Helper 함수: timestamp를 Date 객체로 변환
@@ -42,7 +45,6 @@ function getDateFromTimestamp(timestamp: Date | string | undefined): Date | null
     return timestamp
   }
   
-  // 문자열인 경우 Date로 변환
   try {
     const date = new Date(timestamp)
     if (isNaN(date.getTime())) return null
@@ -52,7 +54,15 @@ function getDateFromTimestamp(timestamp: Date | string | undefined): Date | null
   }
 }
 
-export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDiaryPageProps) {
+// ✅ Helper 함수: 이미지 URL 생성 (Base64 또는 URL)
+function getImageUrl(slot: PhotoSlot): string {
+  if (slot.imageData && slot.mimeType) {
+    return `data:${slot.mimeType};base64,${slot.imageData}`
+  }
+  return slot.photo || "/placeholder.svg"
+}
+
+export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: PrintableDiaryPageProps) {
   const pageRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -211,9 +221,15 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
 
   return (
     <div className="w-full print:p-0 print:m-0">
-      {/* Action buttons - hidden when printing */}
-      <div className="flex justify-between items-center gap-3 mb-6 print:hidden">
-        {/* Text Formatting Controls */}
+      {/* Top Navigation Bar - 중간 위치 */}
+      <div className="flex justify-between items-center gap-3 mb-6 print:hidden px-6 sticky top-0 z-50 py-3">
+        {/* Left: Back Button */}
+        <Button variant="outline" onClick={onBack} size="sm">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          돌아가기
+        </Button>
+
+        {/* Center: Text Formatting Controls */}
         <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
           {/* Font Family Selector */}
           <div className="flex items-center gap-2">
@@ -270,13 +286,13 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
           </div>
         </div>
 
-        {/* Print and Download Buttons */}
+        {/* Right: Print and Download Buttons */}
         <div className="flex gap-3">
-          <Button onClick={handlePrint} variant="outline">
+          <Button onClick={handlePrint} variant="outline" size="sm">
             <Printer className="w-4 h-4 mr-2" />
             인쇄
           </Button>
-          <Button onClick={handleDownloadPDF} className="bg-primary hover:bg-primary/90">
+          <Button onClick={handleDownloadPDF} className="bg-primary hover:bg-primary/90" size="sm">
             <Download className="w-4 h-4 mr-2" />
             PDF 다운로드
           </Button>
@@ -284,7 +300,7 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
       </div>
 
       {/* Main content layout - diary page and sidebar */}
-      <div className="flex gap-8 items-start justify-center print:block print:m-0 print:p-0">
+      <div className="flex gap-8 items-start justify-center print:block print:m-0 print:p-0 px-6">
         {/* A4 Page Container */}
         <div className="flex-shrink-0 print:m-0">
           <div
@@ -329,12 +345,13 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
                 const paragraph = paragraphs[index] || ""
                 const location = slot.exifData?.location?.locationName
                 
-                // ✅ 수정: timestamp를 안전하게 처리
                 const timestampDate = getDateFromTimestamp(slot.exifData?.timestamp)
                 const time = timestampDate?.toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })
+
+                const imageUrl = getImageUrl(slot)
 
                 return (
                   <div key={slot.id} className={`flex gap-4 items-start ${isEven ? "flex-row" : "flex-row-reverse"}`}>
@@ -348,7 +365,7 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title }: PrintableDi
                         }}
                       >
                         <img
-                          src={slot.photo || "/placeholder.svg"}
+                          src={imageUrl}
                           alt={`Travel moment ${index + 1}`}
                           className="w-full h-full object-cover"
                           style={{ aspectRatio: "3/4" }}

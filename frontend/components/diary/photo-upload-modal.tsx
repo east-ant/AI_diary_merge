@@ -65,7 +65,9 @@ export function PhotoUploadModal({
   const [photo, setPhoto] = useState<string | null>(existingPhoto || null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>(existingKeywords)
-  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>(fallbackKeywords)
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>(
+    existingKeywords && existingKeywords.length > 0 ? existingKeywords : fallbackKeywords
+  )
   const [customKeyword, setCustomKeyword] = useState("")
   const [isDragging, setIsDragging] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -123,12 +125,11 @@ export function PhotoUploadModal({
             const longitude = convertDMSToDD(lon, lonRef)
             exifData.location = { latitude, longitude }
 
-            // ✅ await 대신 then() 사용
             reverseGeocode(latitude, longitude)
               .then((locationName) => {
                 if (locationName) {
                   exifData.location!.locationName = locationName
-                  setExifData({ ...exifData }) // UI 갱신
+                  setExifData({ ...exifData })
                 }
               })
               .catch((e) => {
@@ -177,11 +178,12 @@ export function PhotoUploadModal({
     return address || null
   }
 
-  // AI 이미지 분석으로 키워드 추천
-  const analyzeImage = async (imageData: string) => {
+  // ✅ AI 이미지 분석으로 키워드 추천 (useCallback 추가)
+  const analyzeImage = useCallback(async (imageData: string) => {
     setIsAnalyzing(true)
     try {
-      const response = await fetch("/diary/api/analyze-image", {
+      console.log("📤 AI 분석 요청 시작")
+      const response = await fetch("/api/analyze-image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -189,22 +191,38 @@ export function PhotoUploadModal({
         body: JSON.stringify({ imageData }),
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setSuggestedKeywords(result.keywords || fallbackKeywords)
+      console.log("📥 응답 상태:", response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("❌ API 오류:", errorData)
+        setSuggestedKeywords(fallbackKeywords)
+        setIsAnalyzing(false)
+        return
+      }
+
+      const result = await response.json()
+      console.log("✅ AI 분석 결과:", result)
+      console.log("✅ 키워드 배열:", result.keywords)
+
+      // ✅ 키워드가 있으면 업데이트, 없으면 fallback
+      if (result.keywords && Array.isArray(result.keywords) && result.keywords.length > 0) {
+        console.log("🎯 AI 키워드 적용됨:", result.keywords)
+        setSuggestedKeywords(result.keywords)
+        // ✅ 자동 선택 제거 - 사용자가 직접 선택하게 함
       } else {
-        console.error("Failed to analyze image")
+        console.warn("⚠️ 키워드가 없음, fallback 사용")
         setSuggestedKeywords(fallbackKeywords)
       }
     } catch (error) {
-      console.error("Error analyzing image:", error)
+      console.error("❌ Error analyzing image:", error)
       setSuggestedKeywords(fallbackKeywords)
     } finally {
       setIsAnalyzing(false)
     }
-  }
+  }, [])
 
-  // 파일 선택 시 이미지 읽기 + EXIF 추출 + AI 분석
+  // ✅ 파일 선택 시 이미지 읽기 + EXIF 추출 + AI 분석 (순차 실행)
   const handleFileSelect = useCallback(
     async (file: File) => {
       if (file && file.type.startsWith("image/")) {
@@ -214,14 +232,17 @@ export function PhotoUploadModal({
           const imageData = e.target?.result as string
           setPhoto(imageData)
 
-          const [extractedExifData] = await Promise.all([extractExifData(file), analyzeImage(imageData)])
-
+          // ✅ 순차적으로 실행 (EXIF 먼저, 그 다음 AI 분석)
+          const extractedExifData = await extractExifData(file)
           setExifData(extractedExifData)
+
+          // ✅ AI 분석이 완료될 때까지 대기
+          await analyzeImage(imageData)
         }
         reader.readAsDataURL(file)
       }
     },
-    [extractExifData],
+    [extractExifData, analyzeImage],
   )
 
   // 드래그 앤 드롭 핸들러
@@ -264,7 +285,7 @@ export function PhotoUploadModal({
     // ✅ 새로운 이미지인 경우 백엔드에 업로드
     if (selectedFile) {
       setIsUploading(true)
-      
+
       const userId = getUserId()
       if (!userId) {
         toast({
@@ -286,13 +307,12 @@ export function PhotoUploadModal({
         })
 
         if (response.success && response.data) {
-          // 백엔드에서 반환한 이미지 URL과 ID 사용
-          const imageData = response.data.imageData  // Base64
-          const mimeType = response.data.mimeType || 'image/jpeg'
+          const imageData = response.data.imageData
+          const mimeType = response.data.mimeType || "image/jpeg"
           const fullImageUrl = `data:${mimeType};base64,${imageData}`
-          
+
           onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
-          
+
           toast({
             title: "업로드 성공",
             description: "이미지가 성공적으로 업로드되었습니다.",
@@ -444,6 +464,11 @@ export function PhotoUploadModal({
                     <div className="flex items-center space-x-1 text-xs text-primary">
                       <Sparkles className="w-3 h-3" />
                       <span>AI suggested</span>
+                    </div>
+                  )}
+                  {!selectedFile && existingKeywords && existingKeywords.length > 0 && (
+                    <div className="flex items-center space-x-1 text-xs text-blue-500">
+                      <span>Previously used keywords</span>
                     </div>
                   )}
                 </div>

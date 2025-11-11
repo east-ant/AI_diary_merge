@@ -28,6 +28,8 @@ interface ExifData {
 interface PhotoSlot {
   id: string
   photo?: string
+  imageData?: string  // ✅ Base64 데이터
+  mimeType?: string   // ✅ 이미지 타입
   keywords: string[]
   timeSlot: "morning" | "midday" | "afternoon" | "evening"
   timestamp: number
@@ -217,14 +219,56 @@ export default function TravelDiary() {
     setNewDiaryTitle("")
   }
 
-  const selectDiary = (diaryId: string) => {
-    const diary = diaries.find((d) => d.id === diaryId)
-    if (diary) {
-      setCurrentDiaryId(diaryId)
-      setPhotoSlots(diary.photoSlots)
-      setCurrentStep(1)
-      setShowPreview(false)
-      setSidebarOpen(false)
+  // ✅ selectDiary - 상세 조회 API 호출
+  const selectDiary = async (diaryId: string) => {
+    try {
+      console.log("🔍 selectDiary 호출:", diaryId)
+      
+      // 1. 상세 조회 API 호출 (imageData, mimeType 포함)
+      const response = await fetch(`http://localhost:3001/api/diaries/${diaryId}/detail`)
+      const data = await response.json()
+      
+      console.log("📨 API 응답:", data)
+      
+      if (data.success && data.data) {
+        const photoSlots = data.data.photoSlots.map((slot: ApiPhotoSlot) => ({
+          ...slot,
+          exifData: slot.exifData ? {
+            ...slot.exifData,
+            timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
+          } : undefined,
+        }))
+
+        console.log("✅ photoSlots 설정됨:", photoSlots)
+        
+        setCurrentDiaryId(diaryId)
+        setPhotoSlots(photoSlots)
+        setCurrentStep(1)
+        setShowPreview(false)
+        setSidebarOpen(false)
+      } else {
+        // API 실패 시 기존 데이터 사용
+        const diary = diaries.find((d) => d.id === diaryId)
+        if (diary) {
+          setCurrentDiaryId(diaryId)
+          setPhotoSlots(diary.photoSlots)
+          setCurrentStep(1)
+          setShowPreview(false)
+          setSidebarOpen(false)
+        }
+      }
+    } catch (error) {
+      console.error("❌ selectDiary 에러:", error)
+      
+      // 에러 발생 시 기존 데이터 사용
+      const diary = diaries.find((d) => d.id === diaryId)
+      if (diary) {
+        setCurrentDiaryId(diaryId)
+        setPhotoSlots(diary.photoSlots)
+        setCurrentStep(1)
+        setShowPreview(false)
+        setSidebarOpen(false)
+      }
     }
   }
 
@@ -284,7 +328,7 @@ export default function TravelDiary() {
   }
 
   const formatPhotoTime = (slot: PhotoSlot): string | null => {
-    if (!slot.photo) {
+    if (!slot.photo && !slot.imageData) {
       return null
     }
 
@@ -311,7 +355,7 @@ export default function TravelDiary() {
   }
 
   const getCompletedPhotos = () => {
-    return photoSlots.filter((slot) => slot.photo && slot.keywords.length > 0)
+    return photoSlots.filter((slot) => (slot.photo || slot.imageData) && slot.keywords.length > 0)
   }
 
   const canProceedToReview = () => {
@@ -338,7 +382,7 @@ export default function TravelDiary() {
 
     try {
       const uploadedSlots = photoSlots.filter(slot => {
-        const hasPhoto = !!slot.photo
+        const hasPhoto = !!slot.photo || !!slot.imageData
         const hasValidId = slot.id && !slot.id.startsWith('temp')
         return hasPhoto && hasValidId
       })
@@ -405,7 +449,9 @@ export default function TravelDiary() {
     }
   }
 
+  // ✅ 완벽 수정: handleDeleteDiary - 백엔드 DELETE API 호출
   const handleDeleteDiary = async (diaryId: string) => {
+    // temp 다이어리는 로컬에서만 삭제
     if (diaryId.startsWith('temp-')) {
       setDiaries(prev => prev.filter(d => d.id !== diaryId))
       
@@ -421,37 +467,53 @@ export default function TravelDiary() {
       return
     }
 
+    // 저장된 다이어리 삭제 (백엔드 API 호출)
     try {
-      const response = await deleteDiaryApi(diaryId)
+      console.log("🗑️ 삭제 요청 시작:", diaryId)
       
-      if (response.success) {
-        setDiaries(prev => prev.filter(d => d.id !== diaryId))
-        
-        if (currentDiaryId === diaryId) {
-          const remaining = diaries.filter(d => d.id !== diaryId)
-          if (remaining.length > 0) {
-            setCurrentDiaryId(remaining[0].id)
-            setPhotoSlots(remaining[0].photoSlots)
-          } else {
-            createNewDiaryLocal()
-          }
-        }
+      // ✅ 백엔드 DELETE API 호출 (http://localhost:3001)
+      const response = await fetch(`http://localhost:3001/api/diaries/${diaryId}`, {
+        method: 'DELETE',
+      })
 
-        toast({
-          title: "삭제 완료",
-          description: "다이어리가 삭제되었습니다.",
-        })
-      } else {
-        toast({
-          title: "삭제 실패",
-          description: response.error || "다이어리 삭제에 실패했습니다.",
-          variant: "destructive",
-        })
+      console.log("📨 응답 상태:", response.status)
+      
+      const data = await response.json()
+
+      console.log("📨 응답 데이터:", data)
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete diary')
       }
+
+      console.log('✅ 삭제 완료:', data.message)
+      console.log('🖼️ 삭제된 이미지 개수:', data.deletedImages)
+      console.log('🤖 삭제된 AI 다이어리:', data.deletedAIDiaries)
+
+      // 상태 업데이트
+      setDiaries(prev => prev.filter(d => d.id !== diaryId))
+      
+      if (currentDiaryId === diaryId) {
+        const remaining = diaries.filter(d => d.id !== diaryId)
+        if (remaining.length > 0) {
+          setCurrentDiaryId(remaining[0].id)
+          setPhotoSlots(remaining[0].photoSlots)
+        } else {
+          createNewDiaryLocal()
+        }
+      }
+
+      toast({
+        title: "삭제 완료",
+        description: `다이어리와 ${data.deletedImages}개의 이미지가 삭제되었습니다.`,
+      })
     } catch (error) {
+      console.error('❌ 삭제 오류:', error)
       toast({
         title: "오류",
-        description: "다이어리 삭제 중 오류가 발생했습니다.",
+        description: error instanceof Error 
+          ? error.message 
+          : "다이어리 삭제 중 오류가 발생했습니다.",
         variant: "destructive",
       })
     }
@@ -463,11 +525,11 @@ export default function TravelDiary() {
     id: diary.id,
     title: diary.title,
     date: diary.date,
-    photoCount: diary.photoSlots.filter((slot) => slot.photo).length,
+    photoCount: diary.photoSlots.filter((slot) => slot.photo || slot.imageData).length,
   }))
 
   const getTimeEmoji = (slot: PhotoSlot) => {
-    if (!slot.photo) {
+    if (!slot.photo && !slot.imageData) {
       return null
     }
 
@@ -607,6 +669,8 @@ export default function TravelDiary() {
                 setCurrentStep(1)
                 setShowPreview(false)
               }}
+              diaryId={currentDiaryId || ""}
+              userId={getUserId() || ""}
             />
           ) : (
             <div className="max-w-4xl mx-auto px-6 py-8">
@@ -650,12 +714,16 @@ export default function TravelDiary() {
                           </div>
 
                           <Card className="flex-1 p-6 bg-card border-border hover:border-primary/50 transition-colors">
-                            {slot.photo ? (
+                            {slot.photo || slot.imageData ? (
                               <div>
                                 <div className="relative group">
                                   <div className="aspect-video bg-muted rounded-lg mb-4 overflow-hidden">
                                     <img
-                                      src={slot.photo || "/placeholder.svg"}
+                                      src={
+                                        slot.imageData && slot.mimeType
+                                          ? `data:${slot.mimeType};base64,${slot.imageData}`
+                                          : slot.photo || "/placeholder.svg"
+                                      }
                                       alt="Travel photo"
                                       className="w-full h-full object-cover"
                                     />
@@ -829,7 +897,12 @@ export default function TravelDiary() {
               updatePhotoSlot(selectedSlot, photo, keywords, exifData, imageId)
               setSelectedSlot(null)
             }}
-            existingPhoto={photoSlots.find((slot) => slot.id === selectedSlot)?.photo}
+            existingPhoto={
+              photoSlots.find((slot) => slot.id === selectedSlot)?.imageData && 
+              photoSlots.find((slot) => slot.id === selectedSlot)?.mimeType
+                ? `data:${photoSlots.find((slot) => slot.id === selectedSlot)?.mimeType};base64,${photoSlots.find((slot) => slot.id === selectedSlot)?.imageData}`
+                : photoSlots.find((slot) => slot.id === selectedSlot)?.photo
+            }
             existingKeywords={photoSlots.find((slot) => slot.id === selectedSlot)?.keywords || []}
             existingExifData={photoSlots.find((slot) => slot.id === selectedSlot)?.exifData}
           />
