@@ -1,19 +1,22 @@
-import type React from "react"
-import { GeistSans } from "geist/font/sans"
-import { Analytics } from "@vercel/analytics/next"
-import "../globals.css"
+import type { Metadata } from 'next'
 
-export default function RootLayout({
+export const metadata: Metadata = {
+  title: 'AI Diary',
+  description: 'Smart diary that AI analyzes',
+}
+
+export default function DiaryLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
-    <html lang="ko" className={GeistSans.className}>
-      <body>
-        {children}
-        <Analytics />
-      </body>
-    </html>
+    <>
+      {children}
+    </>
   )
 }
+
+
+
+

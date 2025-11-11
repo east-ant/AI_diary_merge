@@ -202,6 +202,7 @@ export async function createDiary(data: CreateDiaryRequest): Promise<ApiResponse
   }
 }
 
+// ✅ 수정된 getDiaries 함수
 export async function getDiaries(userId: string): Promise<ApiResponse<Diary[]>> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/diaries/list/${userId}`, {
@@ -209,21 +210,44 @@ export async function getDiaries(userId: string): Promise<ApiResponse<Diary[]>> 
       headers: { "Content-Type": "application/json" },
     })
 
-    const diaries = await response.json()
+    if (!response.ok) {
+      console.error(`❌ HTTP ${response.status}: 서버 오류`)
+      return { success: false, error: `HTTP ${response.status}: 서버 오류` }
+    }
+
+    const result = await response.json()
     
-    if (Array.isArray(diaries)) {
+    console.log("📥 다이어리 목록 조회:", userId)
+    console.log("📦 응답:", result)
+    
+    // ✅ 백엔드 응답 형식에 맞게 처리
+    if (result.success && Array.isArray(result.data)) {
+      console.log(`✅ ${result.data.length}개의 다이어리 조회됨`)
       return {
         success: true,
-        data: diaries.map((diary) => ({
+        data: result.data.map((diary: Diary) => ({
           ...diary,
           id: diary._id || diary.id,
         })),
       }
     }
     
-    return { success: false, error: "다이어리 목록을 불러올 수 없습니다." }
+    // 배열로 직접 응답하는 경우도 처리
+    if (Array.isArray(result)) {
+      console.log(`✅ ${result.length}개의 다이어리 조회됨`)
+      return {
+        success: true,
+        data: result.map((diary: Diary) => ({
+          ...diary,
+          id: diary._id || diary.id,
+        })),
+      }
+    }
+    
+    console.error("❌ 응답 형식 오류:", result)
+    return { success: false, error: result.error || "다이어리 목록을 불러올 수 없습니다." }
   } catch (error) {
-    console.error("Get diaries error:", error)
+    console.error("❌ Get diaries error:", error)
     return { success: false, error: "서버와 연결할 수 없습니다." }
   }
 }

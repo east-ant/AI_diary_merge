@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Plus, Sun, Sunset, Moon, Edit2, Trash2, FileText, Clock, MapPin, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -50,9 +50,6 @@ const timeSlots = [
 ] as const
 
 // ✅ Helper 함수들
-// ===============================================
-
-// Helper: timestamp를 안전하게 밀리초로 변환
 function getTimestamp(exifTimestamp: Date | string | undefined, fallbackTimestamp: number): number {
   if (!exifTimestamp) {
     return fallbackTimestamp
@@ -73,7 +70,6 @@ function getTimestamp(exifTimestamp: Date | string | undefined, fallbackTimestam
   }
 }
 
-// Helper: timestamp를 안전하게 Date 객체로 변환
 function safeGetDate(timestamp: Date | string | undefined): Date | null {
   if (!timestamp) return null
   
@@ -89,8 +85,6 @@ function safeGetDate(timestamp: Date | string | undefined): Date | null {
     return null
   }
 }
-
-// ===============================================
 
 export default function TravelDiary() {
   const [diaries, setDiaries] = useState<Diary[]>([])
@@ -109,7 +103,62 @@ export default function TravelDiary() {
   const { toast } = useToast()
   const router = useRouter()
 
-  // ✅ 로그인 체크 및 다이어리 불러오기
+  // ✅ 수정 1: loadDiaries를 useCallback으로 정의 (useEffect 없음)
+  const loadDiaries = useCallback(async () => {
+    setIsLoading(true)
+    const userId = getUserId()
+    
+    if (!userId) {
+      router.push("/login")
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const response = await getDiaries(userId)
+      
+      if (response.success && response.data) {
+        const loadedDiaries: Diary[] = response.data.map((diary: ApiDiary) => ({
+          id: diary._id || diary.id || "",
+          title: diary.title,
+          date: diary.date,
+          photoSlots: diary.photoSlots.map((slot: ApiPhotoSlot) => ({
+            ...slot,
+            exifData: slot.exifData ? {
+              ...slot.exifData,
+              timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
+            } : undefined,
+          })),
+          createdAt: typeof diary.createdAt === 'number' ? diary.createdAt : new Date(diary.createdAt).getTime(),
+        }))
+
+        setDiaries(loadedDiaries)
+
+        if (loadedDiaries.length > 0) {
+          setCurrentDiaryId(loadedDiaries[0].id)
+          setPhotoSlots(loadedDiaries[0].photoSlots)
+        } else {
+          createNewDiaryLocal()
+        }
+      } else {
+        toast({
+          title: "불러오기 실패",
+          description: response.error || "다이어리를 불러올 수 없습니다.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: "다이어리를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [toast, router])
+
+  // ✅ 수정 2: useEffect 분리 & 올바른 의존성 배열
   useEffect(() => {
     const userId = getUserId()
     if (!userId) {
@@ -118,72 +167,8 @@ export default function TravelDiary() {
     }
 
     loadDiaries()
-  }, [router])
+  }, [router, loadDiaries])
 
-  const loadDiaries = async () => {
-  setIsLoading(true)
-  const userId = getUserId()
-  
-  console.log("📋 Loading diaries for userId:", userId)  // ← 디버깅용 추가
-  
-  if (!userId) {
-    console.error("❌ userId가 없습니다!")
-    router.push("/login")
-    return
-  }
-
-  try {
-    const response = await getDiaries(userId)
-    
-    console.log("📋 getDiaries 응답:", response)  // ← 디버깅용 추가
-    
-    if (response.success && response.data) {
-      console.log(`✅ ${response.data.length}개의 다이어리 로드됨`)  // ← 디버깅용 추가
-      
-      const loadedDiaries: Diary[] = response.data.map((diary: ApiDiary) => ({
-        id: diary._id || diary.id || "",
-        title: diary.title,
-        date: diary.date,
-        photoSlots: diary.photoSlots.map((slot: ApiPhotoSlot) => ({
-          ...slot,
-          exifData: slot.exifData ? {
-            ...slot.exifData,
-            timestamp: slot.exifData.timestamp ? new Date(slot.exifData.timestamp) : undefined,
-          } : undefined,
-        })),
-        createdAt: typeof diary.createdAt === 'number' ? diary.createdAt : new Date(diary.createdAt).getTime(),
-      }))
-
-      setDiaries(loadedDiaries)
-
-      if (loadedDiaries.length > 0) {
-        setCurrentDiaryId(loadedDiaries[0].id)
-        setPhotoSlots(loadedDiaries[0].photoSlots)
-      } else {
-        console.log("📝 다이어리가 없어서 새로 생성합니다")
-        createNewDiary()
-      }
-    } else {
-      console.error("❌ 다이어리 로드 실패:", response.error)
-      toast({
-        title: "불러오기 실패",
-        description: response.error || "다이어리를 불러올 수 없습니다.",
-        variant: "destructive",
-      })
-    }
-  } catch (error) {
-    console.error("❌ Load diaries error:", error)
-    toast({
-      title: "오류",
-      description: "다이어리를 불러오는 중 오류가 발생했습니다.",
-      variant: "destructive",
-    })
-  } finally {
-    setIsLoading(false)
-  }
-}
-
-  // ✅ 로컬에만 임시 다이어리 생성
   const createNewDiaryLocal = () => {
     const newDiary: Diary = {
       id: `temp-${Date.now()}`,
@@ -193,7 +178,6 @@ export default function TravelDiary() {
       createdAt: Date.now(),
     }
 
-    console.log("📝 로컬 임시 다이어리 생성:", newDiary)
     setDiaries((prev) => [newDiary, ...prev])
     setCurrentDiaryId(newDiary.id)
     setPhotoSlots([])
@@ -217,7 +201,6 @@ export default function TravelDiary() {
       createdAt: Date.now(),
     }
 
-    console.log("📝 새 다이어리 생성:", newDiary)
     setDiaries((prev) => [newDiary, ...prev])
     setCurrentDiaryId(newDiary.id)
     setPhotoSlots([])
@@ -237,7 +220,6 @@ export default function TravelDiary() {
   const selectDiary = (diaryId: string) => {
     const diary = diaries.find((d) => d.id === diaryId)
     if (diary) {
-      console.log("📖 다이어리 선택:", diary)
       setCurrentDiaryId(diaryId)
       setPhotoSlots(diary.photoSlots)
       setCurrentStep(1)
@@ -251,7 +233,6 @@ export default function TravelDiary() {
     return diary?.title || "Travel Diary"
   }
 
-  // ✅ 수정된 sortPhotosByTime
   const sortPhotosByTime = (slots: PhotoSlot[]): PhotoSlot[] => {
     return [...slots].sort((a, b) => {
       const timeA = getTimestamp(a.exifData?.timestamp, a.timestamp)
@@ -267,13 +248,10 @@ export default function TravelDiary() {
       timeSlot: "evening",
       timestamp: Date.now(),
     }
-    console.log("➕ 새 슬롯 추가:", newSlot)
     setPhotoSlots([...photoSlots, newSlot])
   }
 
   const updatePhotoSlot = (slotId: string, photo: string, keywords: string[], exifData?: ExifData, imageId?: string) => {
-    console.log("🔄 슬롯 업데이트:", { slotId, imageId, photo })
-    
     setPhotoSlots((slots) => {
       const updatedSlots = slots.map((slot) =>
         slot.id === slotId
@@ -287,8 +265,6 @@ export default function TravelDiary() {
             }
           : slot,
       )
-      
-      console.log("🔄 업데이트된 슬롯들:", updatedSlots)
       return sortPhotosByTime(updatedSlots)
     })
   }
@@ -307,7 +283,6 @@ export default function TravelDiary() {
     )
   }
 
-  // ✅ 수정된 formatPhotoTime
   const formatPhotoTime = (slot: PhotoSlot): string | null => {
     if (!slot.photo) {
       return null
@@ -360,19 +335,13 @@ export default function TravelDiary() {
     }
 
     setIsSaving(true)
-    console.log("💾 다이어리 저장 시작...")
-    console.log("💾 현재 다이어리 ID:", currentDiaryId)
-    console.log("💾 현재 photoSlots:", photoSlots)
 
     try {
       const uploadedSlots = photoSlots.filter(slot => {
         const hasPhoto = !!slot.photo
         const hasValidId = slot.id && !slot.id.startsWith('temp')
-        console.log(`슬롯 체크: id=${slot.id}, hasPhoto=${hasPhoto}, hasValidId=${hasValidId}`)
         return hasPhoto && hasValidId
       })
-
-      console.log("💾 업로드된 슬롯들:", uploadedSlots)
 
       if (uploadedSlots.length === 0) {
         toast({
@@ -385,7 +354,6 @@ export default function TravelDiary() {
       }
 
       const photoSlotIds = uploadedSlots.map(slot => slot.id)
-      console.log("💾 photoSlotIds:", photoSlotIds)
 
       const response = await createDiary({
         userId,
@@ -393,8 +361,6 @@ export default function TravelDiary() {
         date: new Date().toLocaleDateString(),
         photoSlotIds,
       })
-
-      console.log("💾 저장 응답:", response)
 
       if (response.success && response.data) {
         const savedDiary: Diary = {
@@ -406,8 +372,6 @@ export default function TravelDiary() {
             ? response.data.createdAt 
             : new Date(response.data.createdAt).getTime(),
         }
-
-        console.log("✅ 저장된 다이어리:", savedDiary)
 
         setDiaries(prev => {
           const filtered = prev.filter(d => d.id !== currentDiaryId)
@@ -431,7 +395,6 @@ export default function TravelDiary() {
         })
       }
     } catch (error) {
-      console.error("❌ Save diary error:", error)
       toast({
         title: "저장 오류",
         description: "다이어리 저장 중 오류가 발생했습니다.",
@@ -443,10 +406,7 @@ export default function TravelDiary() {
   }
 
   const handleDeleteDiary = async (diaryId: string) => {
-    console.log("🗑️ 다이어리 삭제 요청:", diaryId)
-
     if (diaryId.startsWith('temp-')) {
-      console.log("🗑️ 로컬 임시 다이어리 삭제")
       setDiaries(prev => prev.filter(d => d.id !== diaryId))
       
       if (currentDiaryId === diaryId) {
@@ -465,7 +425,6 @@ export default function TravelDiary() {
       const response = await deleteDiaryApi(diaryId)
       
       if (response.success) {
-        console.log("✅ 백엔드에서 삭제 완료")
         setDiaries(prev => prev.filter(d => d.id !== diaryId))
         
         if (currentDiaryId === diaryId) {
@@ -490,7 +449,6 @@ export default function TravelDiary() {
         })
       }
     } catch (error) {
-      console.error("❌ Delete diary error:", error)
       toast({
         title: "오류",
         description: "다이어리 삭제 중 오류가 발생했습니다.",
@@ -508,7 +466,6 @@ export default function TravelDiary() {
     photoCount: diary.photoSlots.filter((slot) => slot.photo).length,
   }))
 
-  // ✅ 수정된 getTimeEmoji
   const getTimeEmoji = (slot: PhotoSlot) => {
     if (!slot.photo) {
       return null
@@ -705,10 +662,20 @@ export default function TravelDiary() {
                                   </div>
 
                                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-2">
-                                    <Button size="sm" variant="secondary" onClick={() => setSelectedSlot(slot.id)}>
+                                    <Button 
+                                      size="sm" 
+                                      variant="secondary" 
+                                      onClick={() => setSelectedSlot(slot.id)}
+                                      aria-label="사진 수정"
+                                    >
                                       <Edit2 className="w-3 h-3" />
                                     </Button>
-                                    <Button size="sm" variant="destructive" onClick={() => clearPhoto(slot.id)}>
+                                    <Button 
+                                      size="sm" 
+                                      variant="destructive" 
+                                      onClick={() => clearPhoto(slot.id)}
+                                      aria-label="사진 삭제"
+                                    >
                                       <Trash2 className="w-3 h-3" />
                                     </Button>
                                   </div>
@@ -760,6 +727,7 @@ export default function TravelDiary() {
                                 <button
                                   onClick={() => setSelectedSlot(slot.id)}
                                   className="flex-1 aspect-video bg-muted rounded-lg border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center space-y-2 group mr-4"
+                                  aria-label="사진 추가"
                                 >
                                   <div className="w-12 h-12 rounded-full bg-secondary group-hover:bg-primary/10 transition-colors flex items-center justify-center">
                                     <Plus className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -775,6 +743,7 @@ export default function TravelDiary() {
                                     size="sm"
                                     onClick={() => deletePhotoSlot(slot.id)}
                                     className="text-muted-foreground hover:text-destructive"
+                                    aria-label="슬롯 삭제"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
@@ -794,6 +763,7 @@ export default function TravelDiary() {
                       onClick={addPhotoSlot}
                       variant="outline"
                       className="border-dashed border-2 hover:border-primary/50 bg-transparent"
+                      aria-label="더 많은 사진 추가"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       사진 더 추가하기
@@ -806,9 +776,17 @@ export default function TravelDiary() {
         </div>
 
         {showNewDiaryDialog && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold text-foreground mb-2">새 일기 만들기</h3>
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            role="presentation"
+          >
+            <div 
+              className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-md w-full mx-4"
+              role="dialog"
+              aria-labelledby="dialog-title"
+              aria-modal="true"
+            >
+              <h3 id="dialog-title" className="text-lg font-semibold text-foreground mb-2">새 일기 만들기</h3>
               <p className="text-sm text-muted-foreground mb-4">일기 제목을 입력하세요</p>
               <input
                 type="text"
@@ -822,6 +800,7 @@ export default function TravelDiary() {
                 placeholder="예: 제주도 여행"
                 className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-6"
                 autoFocus
+                aria-label="일기 제목"
               />
               <div className="flex justify-end space-x-3">
                 <Button
@@ -831,7 +810,10 @@ export default function TravelDiary() {
                 >
                   취소
                 </Button>
-                <Button onClick={confirmCreateDiary} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button 
+                  onClick={confirmCreateDiary} 
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
                   만들기
                 </Button>
               </div>

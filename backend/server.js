@@ -101,12 +101,47 @@ async function loginCheck(email, password) {
   };
 }
 
-// ✅ [POST] 회원가입 API
+// ✅ [POST] 회원가입 API (수정됨)
 app.post("/api/register", async (req, res) => {
   console.log("📥 회원가입 요청:", req.body);
   const { email, password } = req.body;
+
+  // ✅ 입력값 검증
+  if (!email || !password) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "이메일과 비밀번호를 입력해주세요." 
+    });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "비밀번호는 6자 이상이어야 합니다." 
+    });
+  }
+
   const result = await registerLogin(email, password);
-  res.json(result);
+  
+  // ✅ 응답 형식 통일
+  if (result.success) {
+    console.log("✅ 회원가입 성공:", email);
+    res.json({
+      success: true,
+      user: {
+        email: email,
+        username: email.split("@")[0],
+        createdAt: new Date(),
+      },
+      message: "회원가입 완료"
+    });
+  } else {
+    console.log("❌ 회원가입 실패:", result.msg);
+    res.status(400).json({
+      success: false,
+      error: result.msg
+    });
+  }
 });
 
 // ✅ [POST] 로그인 API
@@ -114,10 +149,21 @@ app.post("/api/login", async (req, res) => {
   console.log("📥 로그인 요청:", req.body);
   const { email, password } = req.body;
   const result = await loginCheck(email, password);
-  res.json(result);
+  
+  if (result.success) {
+    res.json({
+      success: true,
+      user: result.user,
+      message: result.msg
+    });
+  } else {
+    res.status(401).json({
+      success: false,
+      error: result.msg
+    });
+  }
 });
 
-// ✅ [POST] Google 로그인/회원가입 API
 // ✅ [POST] Google 로그인/회원가입 API (MongoDB Cloud 호환)
 app.post("/api/google-login", async (req, res) => {
   console.log("📥 Google 로그인 요청:", req.body);
@@ -190,7 +236,7 @@ app.post("/api/google-login", async (req, res) => {
     res.status(500).json({ 
       success: false, 
       msg: "서버 오류가 발생했습니다.",
-      error: error.message // 개발 중에만 활용
+      error: error.message
     });
   }
 });
@@ -257,12 +303,12 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
       createdAt: new Date(),
     });
 
-    console.log("✅ 이미지 저장 완료:", imageUrl);  // 디버깅용
+    console.log("✅ 이미지 저장 완료:", imageUrl);
 
     res.json({ 
       message: "✅ 업로드 성공", 
       imageId: result.insertedId,
-      imageUrl,  // "/uploads/123456.jpg" 형식으로 반환
+      imageUrl,
       exifData,
       tempSlotId: tempSlotId || Date.now().toString()
     });
@@ -385,7 +431,7 @@ function getTimeSlot(date) {
   return "evening";
 }
 
-// ✅ [GET] 사용자별 다이어리 목록 조회 API (수정됨)
+// ✅ [GET] 사용자별 다이어리 목록 조회 API
 app.get("/api/diaries/list/:userId", async (req, res) => {
   console.log("📥 다이어리 목록 조회:", req.params.userId);
   const { userId } = req.params;
@@ -398,7 +444,6 @@ app.get("/api/diaries/list/:userId", async (req, res) => {
 
     console.log(`✅ ${diaries.length}개의 다이어리 조회됨`);
     
-    // 👇 수정된 부분: success와 data로 감싸서 응답
     res.json({
       success: true,
       data: diaries 
@@ -406,7 +451,6 @@ app.get("/api/diaries/list/:userId", async (req, res) => {
   } catch (err) {
     console.error("❌ 다이어리 조회 오류:", err);
     
-    // 👇 수정된 부분: success: false 형식으로 응답
     res.status(500).json({ 
       success: false, 
       error: err.message 

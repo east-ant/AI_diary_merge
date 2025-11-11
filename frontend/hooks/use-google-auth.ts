@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { loadGoogleScript, initializeGoogleAuth, type GoogleUser } from "@/lib/google-auth"
-import { googleLogin, clearUserData } from "@/lib/api-client"
+import { googleLogin, clearUserData, registerUser, loginUser } from "@/lib/api-client"
 
 export function useGoogleAuth() {
   const [user, setUser] = useState<GoogleUser | null>(null)
@@ -106,15 +106,76 @@ export function useGoogleAuth() {
     }
   }, [])
 
-  // Dummy functions for email/password (UI only as requested)
+  // ✅ 이메일 로그인 구현
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    console.log("[v0] Email sign-in (dummy):", { email, password })
-    return { user: null, error: "Email sign-in is not implemented yet" }
+    try {
+      console.log("📥 이메일 로그인 시도:", email)
+      
+      const response = await loginUser({
+        email,
+        password,
+      })
+
+      if (response.success && response.user) {
+        console.log("✅ 로그인 성공")
+        
+        // userId 저장
+        localStorage.setItem("userId", response.user.email)
+        localStorage.setItem("userInfo", JSON.stringify(response.user))
+        
+        setUser({
+          email: response.user.email,
+          name: response.user.username,
+          picture: undefined,
+        })
+        
+        return { user: response.user, error: null }
+      } else {
+        console.error("❌ 로그인 실패:", response.error)
+        return { user: null, error: response.error || "로그인에 실패했습니다." }
+      }
+    } catch (error) {
+      console.error("❌ 로그인 오류:", error)
+      return { user: null, error: "서버 오류가 발생했습니다." }
+    }
   }, [])
 
+  // ✅ 이메일 회원가입 구현
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
-    console.log("[v0] Email sign-up (dummy):", { email, password })
-    return { user: null, error: "Email sign-up is not implemented yet" }
+    try {
+      console.log("📥 이메일 회원가입 시도:", email)
+      
+      const response = await registerUser({
+        email,
+        password,
+      })
+
+      if (response.success) {
+        console.log("✅ 회원가입 성공")
+        
+        // 회원가입 성공 후 자동으로 userId 저장
+        localStorage.setItem("userId", email)
+        localStorage.setItem("userInfo", JSON.stringify({
+          email,
+          username: email.split("@")[0],
+          createdAt: new Date(),
+        }))
+        
+        setUser({
+          email,
+          name: email.split("@")[0],
+          picture: undefined,
+        })
+        
+        return { user: { email }, error: null }
+      } else {
+        console.error("❌ 회원가입 실패:", response.error)
+        return { user: null, error: response.error || "회원가입에 실패했습니다." }
+      }
+    } catch (error) {
+      console.error("❌ 회원가입 오류:", error)
+      return { user: null, error: "서버 오류가 발생했습니다." }
+    }
   }, [])
 
   return {

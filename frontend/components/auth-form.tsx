@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,7 @@ export function AuthForm() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  const router = useRouter()
   const { signInWithEmail, signUpWithEmail, isGoogleLoaded } = useGoogleAuth()
   const { toast } = useToast()
 
@@ -66,20 +68,33 @@ export function AuthForm() {
 
     try {
       if (isLogin) {
+        // ✅ 로그인 시도
+        console.log("📥 로그인 시도:", email)
         const { user, error } = await signInWithEmail(email, password)
+        
         if (error) {
+          console.error("❌ 로그인 실패:", error)
           toast({
             title: "Sign in failed",
             description: error,
             variant: "destructive",
           })
+          setIsLoading(false)
         } else {
+          console.log("✅ 로그인 성공", user)
           toast({
             title: "Welcome back!",
             description: "You've successfully signed in to AI Diary.",
           })
+          
+          // ✅ 로그인 성공 후 /diary로 이동
+          console.log("🚀 /diary로 이동 중...")
+          setTimeout(() => {
+            router.push("/diary")
+          }, 500)
         }
       } else {
+        // ✅ 회원가입 시도
         if (password !== confirmPassword) {
           toast({
             title: "Password mismatch",
@@ -90,29 +105,46 @@ export function AuthForm() {
           return
         }
 
+        console.log("📥 회원가입 시도:", email)
         const { user, error } = await signUpWithEmail(email, password)
+        
         if (error) {
+          console.error("❌ 회원가입 실패:", error)
           toast({
             title: "Sign up failed",
             description: error,
             variant: "destructive",
           })
+          setIsLoading(false)
         } else {
+          console.log("✅ 회원가입 성공", user)
           toast({
             title: "Account created!",
             description: "Welcome to AI Diary. Start capturing your memories!",
           })
+          
+          // ✅ 회원가입 성공 후 로그인 폼으로 전환
+          setIsLogin(true)
+          setPassword("")
+          setConfirmPassword("")
+          setEmail(email)
+          setIsLoading(false)
+          
+          toast({
+            title: "이제 로그인하세요",
+            description: "방금 생성한 계정으로 로그인해주세요.",
+          })
         }
       }
     } catch (error) {
+      console.error("❌ 에러:", error)
       toast({
         title: "Authentication error",
         description: "Something went wrong. Please try again.",
         variant: "destructive",
       })
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   const handleGoogleError = (error: string) => {
@@ -210,7 +242,12 @@ export function AuthForm() {
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin)
+                setEmail("")
+                setPassword("")
+                setConfirmPassword("")
+              }}
               className="text-primary hover:text-primary/80 font-medium transition-colors underline-offset-4 hover:underline"
             >
               {isLogin ? "Sign up" : "Sign in"}

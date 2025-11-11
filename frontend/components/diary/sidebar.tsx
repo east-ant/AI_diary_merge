@@ -41,6 +41,19 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
   const router = useRouter()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
+  // ✅ localStorage에서 사용자 정보 가져오기
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [userName, setUserName] = useState<string | null>(null)
+
+  useEffect(() => {
+    const userId = localStorage.getItem("userId")
+    if (userId) {
+      setUserEmail(userId)
+      // @ 앞 부분을 사용자 이름으로 설정
+      setUserName(userId.split("@")[0])
+    }
+  }, [])
+
   // 다이어리 삭제 확인 모달 표시
   const handleDeleteClick = (e: React.MouseEvent, diaryId: string) => {
     e.stopPropagation()
@@ -61,6 +74,9 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
   // 로그아웃 핸들러
   const handleLogout = async () => {
     await signOut()
+    localStorage.removeItem("userId")
+    localStorage.removeItem("userInfo")
+    localStorage.removeItem("googleUser")
     router.push("/")
   }
   
@@ -112,18 +128,18 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
                 <button className="flex items-center space-x-3 w-full hover:bg-accent/50 p-2 rounded-lg transition-colors">
                   <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center overflow-hidden flex-shrink-0 cursor-pointer">
                     <Avatar className="h-full w-full">
-                      <AvatarImage src={user?.picture || "/placeholder.svg"} alt={user?.name} />
+                      <AvatarImage src={user?.picture || "/placeholder.svg"} alt={userName || "User"} />
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {user?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                        {userName?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
                       </AvatarFallback>
                     </Avatar>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <h3 className="font-medium text-foreground text-sm truncate">
-                      {decodeURIComponent(user?.name || 'Travel Explorer')}
+                      {userName || 'Travel Explorer'}
                     </h3>
                     <p className="text-xs text-muted-foreground truncate">
-                      {user?.email || "사용자 이메일 없음"}
+                      {userEmail || "사용자 이메일 없음"}
                     </p>
                   </div>
                 </button>
@@ -131,8 +147,8 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <p className="text-sm font-medium">{userName || 'User'}</p>
+                    <p className="text-xs text-muted-foreground">{userEmail}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -149,9 +165,9 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <DropdownMenuTrigger asChild>
                 <button className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer">
                   <Avatar className="h-full w-full">
-                    <AvatarImage src={user?.picture || "/placeholder.svg"} alt={user?.name} />
+                    <AvatarImage src={user?.picture || "/placeholder.svg"} alt={userName || "User"} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {user?.name?.charAt(0).toUpperCase() || <User className="w-4 h-4" />}
+                      {userName?.charAt(0).toUpperCase() || <User className="w-4 h-4" />}
                     </AvatarFallback>
                   </Avatar>
                 </button>
@@ -159,8 +175,8 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <p className="text-sm font-medium">{userName || 'User'}</p>
+                    <p className="text-xs text-muted-foreground">{userEmail}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -212,61 +228,58 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               )}
             </button>
 
-            <div
-              className={`
-                overflow-y-auto transition-all duration-300 ease-in-out flex-1
-                ${diariesExpanded ? "opacity-100" : "max-h-0 opacity-0"}
-              `}
-            >
-              <div className="px-4 pb-4 space-y-2">
-                {diaries.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="font-medium">No diaries yet</p>
-                    <p className="text-xs mt-1">Create your first travel diary!</p>
-                  </div>
-                ) : (
-                  diaries.map((diary) => (
-                    <Card
-                      key={diary.id}
-                      onClick={() => onSelectDiary(diary.id)}
-                      className={`
-                        p-3 cursor-pointer transition-all hover:shadow-md group relative 
-                        ${
-                          currentDiaryId === diary.id
-                            ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20"
-                            : "bg-card hover:bg-accent border-border"
-                        }
-                      `}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <BookOpen className="w-4 h-4 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h5 className="font-medium text-foreground text-sm mb-1 truncate">{diary.title}</h5>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>{diary.date}</span>
+            {diariesExpanded && (
+              <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4">
+                <div className="space-y-2">
+                  {diaries.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="font-medium">No diaries yet</p>
+                      <p className="text-xs mt-1">Create your first travel diary!</p>
+                    </div>
+                  ) : (
+                    diaries.map((diary) => (
+                      <Card
+                        key={diary.id}
+                        onClick={() => onSelectDiary(diary.id)}
+                        className={`
+                          p-3 cursor-pointer transition-all hover:shadow-md group relative 
+                          ${
+                            currentDiaryId === diary.id
+                              ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20"
+                              : "bg-card hover:bg-accent border-border"
+                          }
+                        `}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <BookOpen className="w-4 h-4 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-medium text-foreground text-sm mb-1 truncate">{diary.title}</h5>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex items-center space-x-1">
+                                <Calendar className="w-3 h-3" />
+                                <span>{diary.date}</span>
+                              </div>
+                              <span className="font-medium">{diary.photoCount} photos</span>
                             </div>
-                            <span className="font-medium">{diary.photoCount} photos</span>
                           </div>
                         </div>
-                      </div>
-                      {/* 다이어리 삭제 버튼 (hover 시 표시) */}
-                      <button
-                        onClick={(e) => handleDeleteClick(e, diary.id)}
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                        aria-label="Delete diary"
-                      >
-                        <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-                      </button>
-                    </Card>
-                  ))
-                )}
+                        {/* 다이어리 삭제 버튼 (hover 시 표시) */}
+                        <button
+                          onClick={(e) => handleDeleteClick(e, diary.id)}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                          aria-label="Delete diary"
+                        >
+                          <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                        </button>
+                      </Card>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center py-4 space-y-4">
