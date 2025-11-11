@@ -26,6 +26,8 @@ interface ExifData {
 interface PhotoSlot {
   id: string
   photo?: string
+  imageData?: string  // ✅ Base64 데이터
+  mimeType?: string   // ✅ 이미지 타입
   keywords: string[]
   timeSlot: "morning" | "midday" | "afternoon" | "evening"
   timestamp: number
@@ -44,7 +46,7 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
   const [showPrintable, setShowPrintable] = useState(false)
 
   const generateMockDiary = () => {
-    const photosWithContent = photoSlots.filter((slot) => slot.photo)
+    const photosWithContent = photoSlots.filter((slot) => slot.photo || slot.imageData)
 
     if (photosWithContent.length === 0) {
       return "No photos to create a diary from. Please add some photos first!"
@@ -115,6 +117,14 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
     document.body.removeChild(element)
   }
 
+  // ✅ 이미지 URL 생성 함수
+  const getImageUrl = (slot: PhotoSlot): string => {
+    if (slot.imageData && slot.mimeType) {
+      return `data:${slot.mimeType};base64,${slot.imageData}`
+    }
+    return slot.photo || "/placeholder.svg"
+  }
+
   if (showPrintable && generatedDiary) {
     return (
       <div className="max-w-[210mm] mx-auto px-6 py-8">
@@ -164,8 +174,9 @@ export function DiaryPreview({ photoSlots, diaryTitle, onBack }: DiaryPreviewPro
             {photoSlots.map((slot, index) => (
               <Card key={slot.id} className="p-4 bg-card border-border">
                 <div className="aspect-video bg-muted rounded-lg mb-3 overflow-hidden">
+                  {/* ✅ Base64 이미지 표시 */}
                   <img
-                    src={slot.photo || "/placeholder.svg"}
+                    src={getImageUrl(slot)}
                     alt={`Travel photo ${index + 1}`}
                     className="w-full h-full object-cover"
                   />

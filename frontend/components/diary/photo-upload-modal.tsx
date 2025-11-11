@@ -287,11 +287,9 @@ export function PhotoUploadModal({
 
         if (response.success && response.data) {
           // 백엔드에서 반환한 이미지 URL과 ID 사용
-          const backendImageUrl = response.data.imageUrl
-          // 백엔드 URL이 상대 경로인 경우 절대 경로로 변환
-          const fullImageUrl = backendImageUrl.startsWith('http') 
-            ? backendImageUrl 
-            : `http://localhost:3001${backendImageUrl}`
+          const imageData = response.data.imageData  // Base64
+          const mimeType = response.data.mimeType || 'image/jpeg'
+          const fullImageUrl = `data:${mimeType};base64,${imageData}`
           
           onSave(fullImageUrl, selectedKeywords, exifData, response.data.imageId)
           

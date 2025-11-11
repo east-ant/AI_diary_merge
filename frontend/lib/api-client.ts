@@ -96,9 +96,18 @@ export interface UploadImageRequest {
 
 export interface UploadImageResponse {
   imageId: string
-  imageUrl: string
+  imageUrl?: string
+  imageData?: string
+  mimeType?: string
   tempSlotId: string
   exifData?: any
+  data?: {
+    imageId: string
+    imageData?: string
+    mimeType?: string
+    exifData?: any
+    tempSlotId: string
+  }
 }
 
 export async function uploadImage(data: UploadImageRequest): Promise<ApiResponse<UploadImageResponse>> {
@@ -114,16 +123,18 @@ export async function uploadImage(data: UploadImageRequest): Promise<ApiResponse
       body: formData,
     })
 
+    // ✅ 응답 처리 수정
     const result = await response.json()
-    
+
     if (result.message && result.imageId) {
       return {
         success: true,
         data: {
           imageId: result.imageId,
-          imageUrl: result.imageUrl,
-          tempSlotId: result.tempSlotId,
+          imageData: result.imageData,  // Base64 데이터
+          mimeType: result.mimeType,
           exifData: result.exifData,
+          tempSlotId: result.tempSlotId
         },
       }
     }

@@ -283,40 +283,43 @@ const upload = multer({ storage });
 
 app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
-    const { userId, keywords, tempSlotId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: "userId가 필요합니다." });
-    }
+    const { userId, keywords, tempSlotId } = req.body
+    
+    // 이미지를 Base64로 변환
+    const imageBuffer = fs.readFileSync(req.file.path)
+    const base64Image = imageBuffer.toString('base64')
+    const mimeType = req.file.mimetype  // 예: 'image/jpeg'
+    
+    const exifData = await extractImgInfo(req.file.path)
 
-    // ✅ 이미지 URL 생성 (앞에 /를 포함해야 함!)
-    const imageUrl = "/uploads/" + req.file.filename;
-    const exifData = await extractImgInfo(req.file.path);
-
-    // ✅ images 컬렉션에 저장
+    // ✅ MongoDB에 저장
     const result = await imagesCollection.insertOne({
       userId,
-      imageUrl,  // "/uploads/123456.jpg" 형식
+      imageData: base64Image,  // Base64 데이터
+      mimeType: mimeType,      // 이미지 타입
       keywords: keywords ? JSON.parse(keywords) : [],
       tempSlotId: tempSlotId || Date.now().toString(),
       exifData,
       usedInDiary: false,
       createdAt: new Date(),
-    });
+    })
 
-    console.log("✅ 이미지 저장 완료:", imageUrl);
+    // ✅ 파일 삭제 (더 이상 필요 없음)
+    fs.unlinkSync(req.file.path)
 
     res.json({ 
       message: "✅ 업로드 성공", 
       imageId: result.insertedId,
-      imageUrl,
+      imageData: base64Image,
+      mimeType: mimeType,
       exifData,
       tempSlotId: tempSlotId || Date.now().toString()
-    });
+    })
   } catch (err) {
-    console.error("❌ 업로드 오류:", err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ 업로드 오류:", err)
+    res.status(500).json({ error: err.message })
   }
-});
+})
 
 // ✅ [GET] 사용자별 일기 조회 API
 app.get("/api/diaries/:userId", async (req, res) => {
@@ -363,10 +366,12 @@ app.post("/api/diaries", async (req, res) => {
         console.log(`✅ ${images.length}개의 이미지 조회됨`);
         console.log("📷 조회된 이미지들:", JSON.stringify(images, null, 2));
 
-        // ✅ 2. photoSlots 형식으로 변환
+        // ✅ 2. photoSlots 형식으로 변환 (Base64 이미지 포함)
         photoSlots = images.map((img, index) => ({
           id: img._id.toString(),
           photo: `http://localhost:3001${img.imageUrl}`,
+          imageData: img.imageData,  // ✅ Base64 데이터 추가
+          mimeType: img.mimeType,    // ✅ 이미지 타입 추가
           keywords: img.keywords || [],
           timeSlot: img.exifData?.date ? getTimeSlot(new Date(img.exifData.date)) : "evening",
           timestamp: img.exifData?.date ? new Date(img.exifData.date).getTime() : Date.now(),

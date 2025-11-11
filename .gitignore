@@ -6,7 +6,8 @@ node_modules/
 
 # next.js
 /.next/
-/out/
+.next/
+.out/
 
 # production
 /build
@@ -24,6 +25,10 @@ backend/.env
 
 # vercel
 .vercel
+
+# uploads
+/uploads
+/uploads/*
 
 # typescript
 *.tsbuildinfo

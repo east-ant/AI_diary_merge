@@ -1,6 +1,7 @@
 {
   "/diary/api/analyze-image/route": "app/diary/api/analyze-image/route.js",
-  "/login/page": "app/login/page.js",
+  "/diary/api/generate-diary/route": "app/diary/api/generate-diary/route.js",
   "/page": "app/page.js",
+  "/login/page": "app/login/page.js",
   "/diary/page": "app/diary/page.js"
 }
