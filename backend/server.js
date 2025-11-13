@@ -10,32 +10,20 @@ const bcrypt = require("bcrypt");
 const app = express();
 require("dotenv").config();
 
+app.use(cors({
+  origin: ["http://localhost:3000", "https://ai-diary-merge.vercel.app", "https://ai-diary27.vercel.app"],
+  credentials: true,
+}));
 
-// ✅ 프론트엔드(Next.js)와 연결할 수 있도록 CORS 허용
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "https://ai-diary-merge.vercel.app",
-      "https://ai-diary27.vercel.app",
-    ],
-    credentials: true,
-  })
-);
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// ✅ 정적 파일 제공
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(express.static("public"));
 app.use("/uploads", express.static("uploads"));
 
-// ✅ MongoDB 연결 설정
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
-let imagesCollection, loginCollection, diariesCollection;
+let imagesCollection, loginCollection, diariesCollection, printableDiaryCollection;
 
-// ✅ DB 연결 후 서버 시작
 async function connectDB() {
   try {
     await client.connect();
@@ -45,27 +33,24 @@ async function connectDB() {
     imagesCollection = db.collection("images");
     loginCollection = db.collection("login");
     diariesCollection = db.collection("diaries");
+    printableDiaryCollection = db.collection("printable_diaries");
 
-    // ✅ uploads 폴더 확인 및 생성 (Windows 호환)
     const uploadsDir = path.join(__dirname, "uploads");
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir);
       console.log("📁 uploads 폴더 생성됨");
     }
 
-    // ✅ 서버는 DB 연결 완료 후 실행
     const PORT = 3001;
     app.listen(PORT, () => {
       console.log(`🚀 Backend running on http://localhost:${PORT}`);
     });
   } catch (err) {
     console.error("❌ DB 연결 실패:", err);
-    console.error("💡 MongoDB가 실행 중인지 확인하세요: net start MongoDB");
   }
 }
 connectDB();
 
-// ✅ 회원가입 함수
 async function registerLogin(email, password) {
   const exist = await loginCollection.findOne({ email });
   if (exist) return { success: false, msg: "이미 존재하는 사용자입니다." };
@@ -82,7 +67,6 @@ async function registerLogin(email, password) {
   return { success: true, msg: "회원가입 완료" };
 }
 
-// ✅ 로그인 검사 함수
 async function loginCheck(email, password) {
   const user = await loginCollection.findOne({ email });
   if (!user) return { success: false, msg: "존재하지 않는 사용자입니다." };
@@ -101,70 +85,44 @@ async function loginCheck(email, password) {
   };
 }
 
-// ✅ [POST] 회원가입 API (수정됨)
 app.post("/api/register", async (req, res) => {
   console.log("📥 회원가입 요청:", req.body);
   const { email, password } = req.body;
 
-  // ✅ 입력값 검증
   if (!email || !password) {
-    return res.status(400).json({ 
-      success: false, 
-      error: "이메일과 비밀번호를 입력해주세요." 
-    });
+    return res.status(400).json({ success: false, error: "이메일과 비밀번호를 입력해주세요." });
   }
 
   if (password.length < 6) {
-    return res.status(400).json({ 
-      success: false, 
-      error: "비밀번호는 6자 이상이어야 합니다." 
-    });
+    return res.status(400).json({ success: false, error: "비밀번호는 6자 이상이어야 합니다." });
   }
 
   const result = await registerLogin(email, password);
   
-  // ✅ 응답 형식 통일
   if (result.success) {
     console.log("✅ 회원가입 성공:", email);
     res.json({
       success: true,
-      user: {
-        email: email,
-        username: email.split("@")[0],
-        createdAt: new Date(),
-      },
+      user: { email: email, username: email.split("@")[0], createdAt: new Date() },
       message: "회원가입 완료"
     });
   } else {
-    console.log("❌ 회원가입 실패:", result.msg);
-    res.status(400).json({
-      success: false,
-      error: result.msg
-    });
+    res.status(400).json({ success: false, error: result.msg });
   }
 });
 
-// ✅ [POST] 로그인 API
 app.post("/api/login", async (req, res) => {
   console.log("📥 로그인 요청:", req.body);
   const { email, password } = req.body;
   const result = await loginCheck(email, password);
   
   if (result.success) {
-    res.json({
-      success: true,
-      user: result.user,
-      message: result.msg
-    });
+    res.json({ success: true, user: result.user, message: result.msg });
   } else {
-    res.status(401).json({
-      success: false,
-      error: result.msg
-    });
+    res.status(401).json({ success: false, error: result.msg });
   }
 });
 
-// ✅ [POST] Google 로그인/회원가입 API (MongoDB Cloud 호환)
 app.post("/api/google-login", async (req, res) => {
   console.log("📥 Google 로그인 요청:", req.body);
   const { email, name, picture } = req.body;
@@ -174,11 +132,9 @@ app.post("/api/google-login", async (req, res) => {
   }
 
   try {
-    // ✅ 1. 기존 사용자 확인
     let user = await loginCollection.findOne({ email });
 
     if (!user) {
-      // ✅ 2. 새 사용자 생성 (Google 로그인은 비밀번호 없음)
       const newUser = {
         email,
         username: name || email.split("@")[0],
@@ -187,61 +143,29 @@ app.post("/api/google-login", async (req, res) => {
         createdAt: new Date(),
       };
       
-      // ✅ 3. 삽입 후 결과 확인
       const insertResult = await loginCollection.insertOne(newUser);
       
       if (!insertResult.insertedId) {
-        console.error("❌ MongoDB insertOne 실패");
-        return res.status(500).json({ 
-          success: false, 
-          msg: "사용자 생성에 실패했습니다. MongoDB 연결을 확인하세요." 
-        });
+        return res.status(500).json({ success: false, msg: "사용자 생성에 실패했습니다." });
       }
 
-      user = {
-        ...newUser,
-        _id: insertResult.insertedId
-      };
-      console.log("✅ 새 Google 사용자 생성:", email, "ID:", insertResult.insertedId);
+      user = { ...newUser, _id: insertResult.insertedId };
+      console.log("✅ 새 Google 사용자 생성:", email);
     } else {
       console.log("✅ 기존 Google 사용자 로그인:", email);
-      // ✅ 4. 기존 사용자의 프로필 사진 업데이트 (선택사항)
-      if (picture && user.picture !== picture) {
-        const updateResult = await loginCollection.updateOne(
-          { email },
-          { $set: { picture: picture, updatedAt: new Date() } }
-        );
-        
-        if (updateResult.modifiedCount > 0) {
-          user.picture = picture;
-          console.log("✅ 프로필 사진 업데이트됨");
-        }
-      }
     }
 
-    // ✅ 5. 성공 응답
     res.json({
       success: true,
       msg: "Google 로그인 성공",
-      user: {
-        email: user.email,
-        username: user.username,
-        picture: user.picture,
-        createdAt: user.createdAt,
-      },
+      user: { email: user.email, username: user.username, picture: user.picture, createdAt: user.createdAt },
     });
   } catch (error) {
     console.error("❌ Google 로그인 에러:", error);
-    console.error("❌ 에러 상세:", error.message);
-    res.status(500).json({ 
-      success: false, 
-      msg: "서버 오류가 발생했습니다.",
-      error: error.message
-    });
+    res.status(500).json({ success: false, msg: "서버 오류가 발생했습니다." });
   }
 });
 
-// ✅ 이미지 EXIF 추출
 async function extractImgInfo(imagePath) {
   try {
     const buffer = fs.readFileSync(imagePath);
@@ -255,48 +179,33 @@ async function extractImgInfo(imagePath) {
 
     let latitude = lat ? (latRef === "S" ? -lat : lat) : null;
     let longitude = lon ? (lonRef === "W" ? -lon : lon) : null;
+    const date = result.tags.CreateDate ? new Date(result.tags.CreateDate * 1000).toISOString() : null;
 
-    const date = result.tags.CreateDate
-      ? new Date(result.tags.CreateDate * 1000).toISOString()
-      : null;
-
-    return {
-      success: true,
-      latitude,
-      longitude,
-      date,
-      hasGPS: latitude !== null && longitude !== null,
-    };
+    return { success: true, latitude, longitude, date, hasGPS: latitude !== null && longitude !== null };
   } catch (error) {
     console.error("EXIF img error:", error);
     return { success: false, msg: "다른 사진을 입력하세요." };
   }
 }
 
-// ✅ multer로 파일 업로드 설정
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + path.extname(file.originalname)),
+  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
 });
 const upload = multer({ storage });
 
 app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
     const { userId, keywords, tempSlotId } = req.body
-    
-    // 이미지를 Base64로 변환
     const imageBuffer = fs.readFileSync(req.file.path)
     const base64Image = imageBuffer.toString('base64')
-    const mimeType = req.file.mimetype  // 예: 'image/jpeg'
-    
+    const mimeType = req.file.mimetype
     const exifData = await extractImgInfo(req.file.path)
 
-    // ✅ MongoDB에 저장
     const result = await imagesCollection.insertOne({
       userId,
-      imageData: base64Image,  // Base64 데이터
-      mimeType: mimeType,      // 이미지 타입
+      imageData: base64Image,
+      mimeType: mimeType,
       keywords: keywords ? JSON.parse(keywords) : [],
       tempSlotId: tempSlotId || Date.now().toString(),
       exifData,
@@ -304,7 +213,6 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
       createdAt: new Date(),
     })
 
-    // ✅ 파일 삭제 (더 이상 필요 없음)
     fs.unlinkSync(req.file.path)
 
     res.json({ 
@@ -321,7 +229,6 @@ app.post("/api/upload", upload.single("image"), async (req, res) => {
   }
 })
 
-// ✅ [GET] 사용자별 일기 조회 API
 app.get("/api/diaries/:userId", async (req, res) => {
   const { userId } = req.params;
   const diaries = await imagesCollection.find({ userId }).toArray();
@@ -337,10 +244,7 @@ app.post("/api/diaries", async (req, res) => {
   }
 
   try {
-    // ✅ 1. photoSlotIds로 images 컬렉션에서 사진 가져오기
     let photoSlots = [];
-    
-    console.log("📷 받은 photoSlotIds:", photoSlotIds);
     
     if (photoSlotIds && photoSlotIds.length > 0) {
       const { ObjectId } = require("mongodb");
@@ -350,28 +254,19 @@ app.post("/api/diaries", async (req, res) => {
           try {
             return new ObjectId(id);
           } catch (e) {
-            console.error(`❌ 잘못된 ObjectId: ${id}`, e);
             return null;
           }
         })
         .filter(id => id !== null);
 
-      console.log("📷 변환된 ObjectIds:", imageIds);
-
       if (imageIds.length > 0) {
-        const images = await imagesCollection.find({
-          _id: { $in: imageIds }
-        }).toArray();
+        const images = await imagesCollection.find({ _id: { $in: imageIds } }).toArray();
 
-        console.log(`✅ ${images.length}개의 이미지 조회됨`);
-        console.log("📷 조회된 이미지들:", JSON.stringify(images, null, 2));
-
-        // ✅ 2. photoSlots 형식으로 변환 (Base64 이미지 포함)
-        photoSlots = images.map((img, index) => ({
+        photoSlots = images.map((img) => ({
           id: img._id.toString(),
           photo: `http://localhost:3001${img.imageUrl}`,
-          imageData: img.imageData,  // ✅ Base64 데이터 추가
-          mimeType: img.mimeType,    // ✅ 이미지 타입 추가
+          imageData: img.imageData,
+          mimeType: img.mimeType,
           keywords: img.keywords || [],
           timeSlot: img.exifData?.date ? getTimeSlot(new Date(img.exifData.date)) : "evening",
           timestamp: img.exifData?.date ? new Date(img.exifData.date).getTime() : Date.now(),
@@ -384,21 +279,13 @@ app.post("/api/diaries", async (req, res) => {
           }
         }));
 
-        console.log("📷 생성된 photoSlots:", JSON.stringify(photoSlots, null, 2));
-
-        // ✅ 3. images 컬렉션에서 usedInDiary를 true로 표시
         await imagesCollection.updateMany(
           { _id: { $in: imageIds } },
           { $set: { usedInDiary: true } }
         );
-      } else {
-        console.warn("⚠️ 유효한 imageIds가 없습니다");
       }
-    } else {
-      console.warn("⚠️ photoSlotIds가 비어있습니다");
     }
 
-    // ✅ 4. 다이어리 생성
     const newDiary = {
       userId,
       title,
@@ -407,19 +294,12 @@ app.post("/api/diaries", async (req, res) => {
       createdAt: new Date(),
     };
 
-    console.log("📝 저장할 다이어리:", JSON.stringify(newDiary, null, 2));
-
     const result = await diariesCollection.insertOne(newDiary);
-
-    console.log("✅ 다이어리 저장 완료, ID:", result.insertedId);
 
     res.json({
       success: true,
       message: "✅ 다이어리 생성 완료",
-      diary: {
-        ...newDiary,
-        _id: result.insertedId,
-      },
+      diary: { ...newDiary, _id: result.insertedId },
     });
   } catch (err) {
     console.error("❌ 다이어리 생성 오류:", err);
@@ -427,7 +307,6 @@ app.post("/api/diaries", async (req, res) => {
   }
 });
 
-// ✅ Helper: 시간대 계산
 function getTimeSlot(date) {
   const hour = date.getHours();
   if (hour >= 5 && hour < 12) return "morning";
@@ -436,51 +315,328 @@ function getTimeSlot(date) {
   return "evening";
 }
 
-// ✅ [GET] 사용자별 다이어리 목록 조회 API
 app.get("/api/diaries/list/:userId", async (req, res) => {
   console.log("📥 다이어리 목록 조회:", req.params.userId);
   const { userId } = req.params;
 
   try {
-    const diaries = await diariesCollection
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const diaries = await diariesCollection.find({ userId }).toArray();
+    diaries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    console.log(`✅ ${diaries.length}개의 다이어리 조회됨`);
-    
-    res.json({
-      success: true,
-      data: diaries 
-    });
+    res.json({ success: true, data: diaries });
   } catch (err) {
     console.error("❌ 다이어리 조회 오류:", err);
-    
-    res.status(500).json({ 
-      success: false, 
-      error: err.message 
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// ✅ [DELETE] 다이어리 삭제 API
+// ✅ DELETE는 GET detail보다 먼저!
 app.delete("/api/diaries/:diaryId", async (req, res) => {
   console.log("📥 다이어리 삭제 요청:", req.params.diaryId);
   const { diaryId } = req.params;
 
   try {
     const { ObjectId } = require("mongodb");
-    const result = await diariesCollection.deleteOne({
-      _id: new ObjectId(diaryId),
-    });
+    
+    let diary;
+    
+    // 1️⃣ 먼저 ObjectId로 찾기
+    try {
+      const objectIdDiaryId = new ObjectId(diaryId);
+      diary = await diariesCollection.findOne({ _id: objectIdDiaryId });
+      if (diary) {
+        console.log("✅ ObjectId로 찾음: 성공");
+      } else {
+        console.log("⚠️ ObjectId로 못 찾음, 문자열로 시도");
+      }
+    } catch (e) {
+      console.log("⚠️ ObjectId 변환 실패:", e.message);
+    }
+    
+    // 2️⃣ ObjectId로 못 찾으면 문자열로 찾기
+    if (!diary) {
+      diary = await diariesCollection.findOne({ _id: diaryId });
+      if (diary) {
+        console.log("✅ 문자열로 찾음: 성공");
+      }
+    }
 
-    if (result.deletedCount === 0) {
+    if (!diary) {
+      console.log("❌ 다이어리를 찾을 수 없음. diaryId:", diaryId);
+      console.log("💡 MongoDB의 diaryId 형식을 확인하세요");
       return res.status(404).json({ error: "다이어리를 찾을 수 없습니다." });
     }
 
-    res.json({ success: true, message: "✅ 다이어리 삭제 완료" });
+    console.log("📝 조회된 다이어리:", diary._id);
+
+    const imageIds = [];
+    if (diary.photoSlots && Array.isArray(diary.photoSlots)) {
+      diary.photoSlots.forEach((slot) => {
+        if (slot.id && !slot.id.startsWith("temp")) {
+          imageIds.push(slot.id);
+        }
+      });
+    }
+
+    let deletedImageCount = 0;
+    if (imageIds.length > 0) {
+      const imageDeleteResult = await imagesCollection.deleteMany({ _id: { $in: imageIds } });
+      deletedImageCount = imageDeleteResult.deletedCount;
+      console.log(`✅ ${deletedImageCount}개의 이미지 삭제됨`);
+    }
+
+    await diariesCollection.deleteOne({ _id: diary._id });
+    console.log("✅ 다이어리 삭제 완료");
+
+    const aiDiaryCollection = client.db("diary").collection("AI diary results");
+    
+    let aiDeleteResult;
+    try {
+      const objectIdDiaryId = new ObjectId(diaryId);
+      aiDeleteResult = await aiDiaryCollection.deleteMany({ diaryId: objectIdDiaryId });
+    } catch (e) {
+      aiDeleteResult = await aiDiaryCollection.deleteMany({ diaryId: diaryId });
+    }
+    
+    console.log(`✅ ${aiDeleteResult.deletedCount}개의 AI 다이어리 결과 삭제됨`);
+
+    // ✅ 인쇄된 다이어리도 삭제
+    try {
+      const objectIdDiaryId = new ObjectId(diaryId);
+      const printDeleteResult = await printableDiaryCollection.deleteMany({ diaryId: objectIdDiaryId });
+      console.log(`✅ ${printDeleteResult.deletedCount}개의 인쇄 다이어리 삭제됨`);
+    } catch (e) {
+      console.log("⚠️ 인쇄 다이어리 삭제 시도 (문자열)");
+      const printDeleteResult = await printableDiaryCollection.deleteMany({ diaryId: diaryId });
+      console.log(`✅ ${printDeleteResult.deletedCount}개의 인쇄 다이어리 삭제됨`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "✅ 다이어리 삭제 완료",
+      deletedImages: deletedImageCount,
+      deletedAIDiaries: aiDeleteResult.deletedCount
+    });
   } catch (err) {
     console.error("❌ 다이어리 삭제 오류:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ GET detail은 DELETE 다음에!
+app.get("/api/diaries/:diaryId/detail", async (req, res) => {
+  console.log("📥 다이어리 상세 조회:", req.params.diaryId);
+  const { diaryId } = req.params;
+
+  try {
+    const { ObjectId } = require("mongodb");
+    
+    let diary;
+    
+    // 1️⃣ 먼저 ObjectId로 찾기
+    try {
+      const objectIdDiaryId = new ObjectId(diaryId);
+      diary = await diariesCollection.findOne({ _id: objectIdDiaryId });
+    } catch (e) {
+      console.log("⚠️ ObjectId 변환 실패, 문자열로 찾기");
+    }
+    
+    // 2️⃣ ObjectId로 못 찾으면 문자열로 찾기
+    if (!diary) {
+      diary = await diariesCollection.findOne({ _id: diaryId });
+    }
+
+    if (!diary) {
+      return res.status(404).json({ success: false, error: "다이어리를 찾을 수 없습니다." });
+    }
+
+    if (diary.photoSlots && diary.photoSlots.length > 0) {
+      const photoIds = diary.photoSlots.map(slot => slot.id).filter(id => id);
+
+      if (photoIds.length > 0) {
+        const images = await imagesCollection.find({ _id: { $in: photoIds } }).toArray();
+
+        diary.photoSlots = diary.photoSlots.map(slot => {
+          const image = images.find(img => img._id === slot.id);
+          return {
+            ...slot,
+            imageData: image?.imageData,
+            mimeType: image?.mimeType,
+          };
+        });
+      }
+    }
+
+    res.json({ success: true, data: diary });
+  } catch (err) {
+    console.error("❌ 다이어리 상세 조회 오류:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/save-ai-diary", async (req, res) => {
+  const { diaryId, userId, content, photoSlots } = req.body;
+
+  try {
+    const { ObjectId } = require("mongodb");
+    const aiDiaryCollection = client.db("diary").collection("AI diary results");
+    
+    const objectIdDiaryId = new ObjectId(diaryId);
+    
+    // ✅ photoSlots에서 imageData 제거 (Base64 데이터 제거)
+    const cleanPhotoSlots = photoSlots ? photoSlots.map(slot => {
+      const { imageData, mimeType, ...rest } = slot;
+      return rest;
+    }) : [];
+    
+    const result = await aiDiaryCollection.insertOne({
+      diaryId: objectIdDiaryId,
+      userId,
+      content,
+      photoSlots: cleanPhotoSlots,
+      createdAt: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: "✅ AI 다이어리 저장 완료",
+      aiDiaryId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("❌ AI 다이어리 저장 오류:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/ai-diary/:diaryId", async (req, res) => {
+  console.log("📥 AI 다이어리 조회:", req.params.diaryId);
+  const { diaryId } = req.params;
+
+  try {
+    const { ObjectId } = require("mongodb");
+    const aiDiaryCollection = client.db("diary").collection("AI diary results");
+
+    const aiDiary = await aiDiaryCollection.findOne({
+      diaryId: new ObjectId(diaryId),
+    });
+
+    if (!aiDiary) {
+      return res.status(404).json({ success: false, error: "AI 다이어리를 찾을 수 없습니다." });
+    }
+
+    res.json({ success: true, data: aiDiary });
+  } catch (err) {
+    console.error("❌ AI 다이어리 조회 오류:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ PrintableDiaryPage 저장 API (파일로 저장)
+app.post("/api/diaries/save-printable", async (req, res) => {
+  console.log("📥 인쇄 다이어리 저장 요청");
+  const { diaryId, userId, imageData } = req.body;
+
+  if (!diaryId || !userId || !imageData) {
+    return res.status(400).json({ success: false, error: "diaryId, userId, imageData가 필요합니다." });
+  }
+
+  try {
+    const { ObjectId } = require("mongodb");
+    const objectIdDiaryId = new ObjectId(diaryId);
+
+    // Base64 데이터에서 헤더 제거 (data:image/jpeg;base64, 부분 제거)
+    const base64Data = imageData.includes(",") ? imageData.split(",")[1] : imageData;
+
+    // ✅ 파일로 저장
+    const printableDir = path.join(__dirname, "uploads/printable");
+    if (!fs.existsSync(printableDir)) {
+      fs.mkdirSync(printableDir, { recursive: true });
+    }
+
+    const fileName = `printable-${diaryId}-${Date.now()}.jpg`;
+    const filePath = path.join(printableDir, fileName);
+    const buffer = Buffer.from(base64Data, "base64");
+    fs.writeFileSync(filePath, buffer);
+
+    console.log("✅ 인쇄 다이어리 파일 저장:", filePath);
+
+    // MongoDB에는 경로만 저장
+    const result = await printableDiaryCollection.insertOne({
+      diaryId: objectIdDiaryId,
+      userId,
+      fileName: fileName,
+      filePath: `/uploads/printable/${fileName}`,
+      mimeType: "image/jpeg",
+      createdAt: new Date(),
+    });
+
+    console.log("✅ 인쇄 다이어리 저장 완료:", result.insertedId);
+
+    res.json({
+      success: true,
+      message: "✅ 인쇄 다이어리 저장 완료",
+      printableDiaryId: result.insertedId,
+      filePath: `/uploads/printable/${fileName}`,
+    });
+  } catch (err) {
+    console.error("❌ 인쇄 다이어리 저장 오류:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ✅ PrintableDiaryPage 조회 API
+app.get("/api/diaries/printable/:diaryId", async (req, res) => {
+  console.log("📥 인쇄 다이어리 조회:", req.params.diaryId);
+  const { diaryId } = req.params;
+
+  try {
+    const { ObjectId } = require("mongodb");
+    
+    let printableDiary;
+    
+    // ObjectId로 찾기
+    try {
+      const objectIdDiaryId = new ObjectId(diaryId);
+      printableDiary = await printableDiaryCollection.findOne({ diaryId: objectIdDiaryId });
+    } catch (e) {
+      console.log("⚠️ ObjectId 변환 실패, 문자열로 찾기");
+    }
+
+    // 문자열로 찾기
+    if (!printableDiary) {
+      printableDiary = await printableDiaryCollection.findOne({ diaryId: diaryId });
+    }
+
+    if (!printableDiary) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "저장된 인쇄 다이어리가 없습니다.",
+        hasPrintable: false 
+      });
+    }
+
+    // ✅ 파일에서 Base64 읽기
+    let imageData = null;
+    if (printableDiary.filePath && fs.existsSync(path.join(__dirname, printableDiary.filePath))) {
+      const buffer = fs.readFileSync(path.join(__dirname, printableDiary.filePath));
+      imageData = buffer.toString('base64');
+    }
+
+    res.json({
+      success: true,
+      hasPrintable: true,
+      data: {
+        _id: printableDiary._id.toString(),
+        diaryId: printableDiary.diaryId.toString(),
+        userId: printableDiary.userId,
+        imageData: imageData,
+        filePath: printableDiary.filePath,
+        mimeType: printableDiary.mimeType,
+        createdAt: printableDiary.createdAt,
+      }
+    });
+  } catch (err) {
+    console.error("❌ 인쇄 다이어리 조회 오류:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
