@@ -1,45 +1,80 @@
+/* frontend/app/globals.css */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* AI Diary Theme - Soft, minimal colors inspired by the design */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.2 0.02 30); /* Warm dark brown */
-  --card: oklch(1 0 0); /* Pure white for cards */
-  --card-foreground: oklch(0.2 0.02 30);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 30);
-  /* Changed primary color from reddish terracotta to black to match diary section */
-  --primary: oklch(0.205 0 0); /* Black for buttons */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.94 0.02 45); /* Soft cream */
-  --secondary-foreground: oklch(0.45 0.12 15);
-  --muted: oklch(0.96 0.01 45); /* Very light cream */
-  --muted-foreground: oklch(0.5 0.02 30); /* Medium warm gray */
-  --accent: oklch(0.92 0.03 60); /* Soft peach accent */
-  --accent-foreground: oklch(0.2 0.02 30);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.98 0.01 45);
-  --border: oklch(0.9 0.02 45); /* Soft warm border */
-  --input: oklch(0.99 0.005 45); /* Very light input background */
-  --ring: oklch(0.45 0.12 15); /* Focus ring matches primary */
+  /* Light Mode - 현재 사용 중인 하얀색 테마 */
+  --background: oklch(1 0 0);  /* 하얀색 배경 */
+  --foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
+  --card: oklch(1 0 0);  /* 하얀색 카드 */
+  --card-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
+  --popover: oklch(1 0 0);  /* 하얀색 팝오버 */
+  --popover-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
+  --primary: oklch(0.205 0 0);  /* 검은색 primary */
+  --primary-foreground: oklch(0.985 0 0);  /* 하얀색 텍스트 */
+  --secondary: oklch(1 0 0);  /* 하얀색 */
+  --secondary-foreground: oklch(0.45 0.12 15);  /* 회색 텍스트 */
+  --muted: oklch(0.96 0 0);  /* 연한 회색 */
+  --muted-foreground: oklch(0.5 0.02 30);  /* 중간 회색 텍스트 */
+  --accent: oklch(0.97 0 0);  /* 연한 회색 accent */
+  --accent-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
+  --destructive: oklch(0.577 0.245 27.325);  /* 빨간색 */
+  --destructive-foreground: oklch(0.98 0.01 45);  /* 하얀색 */
+  --border: oklch(0.9 0.02 45);  /* 연한 회색 테두리 */
+  --input: oklch(0.96 0 0);  /* 연한 회색 입력 */
+  --ring: oklch(0.45 0.12 15);  /* 회색 링 */
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 1rem; /* More rounded for diary aesthetic */
-  --sidebar: oklch(0.98 0.01 45);
-  --sidebar-foreground: oklch(0.2 0.02 30);
-  /* Updated sidebar primary to match new black primary color */
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.98 0.01 45);
-  --sidebar-accent: oklch(0.94 0.02 45);
-  --sidebar-accent-foreground: oklch(0.45 0.12 15);
-  --sidebar-border: oklch(0.9 0.02 45);
-  --sidebar-ring: oklch(0.45 0.12 15);
+  --radius: 0.625rem;
+  --sidebar: oklch(1 0 0);  /* 하얀색 사이드바 */
+  --sidebar-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
+  --sidebar-primary: oklch(0.205 0 0);  /* 검은색 */
+  --sidebar-primary-foreground: oklch(0.98 0.01 45);  /* 하얀색 */
+  --sidebar-accent: oklch(0.97 0 0);  /* 연한 회색 */
+  --sidebar-accent-foreground: oklch(0.45 0.12 15);  /* 회색 텍스트 */
+  --sidebar-border: oklch(0.9 0.02 45);  /* 연한 회색 테두리 */
+  --sidebar-ring: oklch(0.45 0.12 15);  /* 회색 링 */
+}
+.dark {
+  /* Dark Mode - 흑백 반전 */
+  --background: oklch(0.25 0 0);  /* 페이지 배경 - 더 밝은 다크 그레이 */
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.25 0 0);  /* 카드 배경 */
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.25 0 0);  /* 팝오버 배경 */
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.85 0 0);
+  --primary-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.25 0 0);  /* 세컨더리 배경 */
+  --secondary-foreground: oklch(0.75 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.25 0 0);
+  --accent-foreground: oklch(0.95 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.98 0.01 45);
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.65 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.18 0 0);  /* 어두운 사이드바 배경 - 거의 검정 */
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.2478 0 90);
+  --sidebar-primary-foreground: oklch(0.95 0 0);
+  --sidebar-accent: oklch(0.2478 0 90);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.2478 0 90);
+  --sidebar-ring: oklch(0.2478 0 90);
 }
 
 @theme inline {
@@ -92,7 +127,7 @@
   }
 }
 
-/* Added custom font-face declarations from diary section */
+/* 폰트 설정들 */
 @font-face {
   font-family: "Cafe24Shiningstar";
   src: url("/fonts/Cafe24Shiningstar-v2.0.woff2") format("woff2"), url("/fonts/Cafe24Shiningstar-v2.0.woff")
@@ -134,7 +169,7 @@
   font-display: swap;
 }
 
-/* Added timeline connector styles from diary section */
+/* Timeline 스타일 */
 .timeline-connector {
   background: linear-gradient(
     to bottom,

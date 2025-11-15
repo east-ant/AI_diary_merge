@@ -106,13 +106,16 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           {isOpen ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 ">
-                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center cursor-pointer" onClick={onNavigateToDashboard}>
-                  <Plane className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">Travel Diary</h2>
-                  <p className="text-xs text-muted-foreground">Capture your journey</p>
-                </div>
+                <div 
+          className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center cursor-pointer overflow-hidden" 
+          onClick={onNavigateToDashboard}
+        >
+          <img 
+            src="/images/pplane.png" 
+            alt="TRAVELY Logo" 
+            className="w-20 h-20 object-contain " 
+          />
+        </div>
               </div>
               <Button
                 variant="ghost"
