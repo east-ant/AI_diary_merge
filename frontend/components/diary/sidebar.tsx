@@ -102,36 +102,33 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
         `}
       >
         {/* 헤더: 로고 및 토글 버튼 */}
-        <div className="p-4 border-b border-border flex-shrink-0">
-          {isOpen ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 ">
-                <div 
-          className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center cursor-pointer overflow-hidden" 
-          onClick={onNavigateToDashboard}
-        >
-          <img 
-            src="/images/pplane.png" 
-            alt="TRAVELY Logo" 
-            className="w-20 h-20 object-contain " 
-          />
-        </div>
+          <div className="p-4 border-b border-border flex-shrink-0">
+            {isOpen ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  
+                  <div 
+                    className="cursor-pointer" 
+                    onClick={onNavigateToDashboard}
+                  >
+                    <h1 className="text-xl font-bold text-foreground">Trable Diary</h1>
+                  </div>
+                </div>
+               <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onToggle}
+                  className="hover:bg-accent transition-all flex-shrink-0"
+                >
+                  <PanelLeft className="w-5 h-5" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onToggle}
-                className="hover:bg-accent transition-all flex-shrink-0"
-              >
-                <PanelLeft className="w-5 h-5" />
+            ) : (
+              <Button variant="ghost" size="icon" onClick={onToggle} className="w-full hover:bg-accent transition-all">
+                <PanelLeft className="w-5 h-5 rotate-180" />
               </Button>
-            </div>
-          ) : (
-            <Button variant="ghost" size="icon" onClick={onToggle} className="w-full hover:bg-accent transition-all">
-              <PanelLeft className="w-5 h-5 rotate-180" />
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
 
         {/* 사용자 프로필 섹션 */}
         {isOpen ? (

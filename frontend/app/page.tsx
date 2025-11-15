@@ -1,3 +1,4 @@
+/*/app/page.tsx */
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -69,9 +70,9 @@ export default function Home() {
 
   return (
 
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-gray-200">
+      <header className="border-b border-border">
         <div className="container mx-auto px-4 py-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
           {/* ✅ SVG를 이미지로 교체 */}
@@ -119,7 +120,7 @@ export default function Home() {
                         {user.name?.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden sm:block text-sm font-medium text-gray-900">
+                    <span className="hidden sm:block text-sm font-medium text-foreground">
                       {user.name}
                     </span>
                   </button>
@@ -167,7 +168,7 @@ export default function Home() {
               <p className="text-gray-300">TRAVELY가 당신의 여행을 반짝이게 만들어드립니다.</p>
             </div>
             <div className="flex-1 flex justify-center">
-              <div className="relative w-64 h-64 bg-white rounded-lg shadow-2xl transform rotate-3">
+              <div className="relative w-64 h-64 bg-background rounded-lg shadow-2xl transform rotate-3">
                 <div className="absolute inset-4 flex items-center justify-center">
                   <svg className="w-48 h-48" viewBox="0 0 200 200" fill="none">
                     <rect x="20" y="40" width="160" height="120" fill="#f3f4f6" stroke="#000" strokeWidth="2" />
@@ -193,17 +194,17 @@ export default function Home() {
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">매일매일, 내 여행을 색칠하는 시간</h3>
-              <p className="text-gray-600 mb-3">여행 중 경험한 순간들을 기록하고 공유하세요.</p>
-              <p className="text-gray-600 mb-3">AI가 당신의 여행 패턴을 분석해 더 나은 추천을 제공합니다.</p>
-              <p className="text-gray-600">TRAVELY가 당신의 여행을 더욱 특별하게 만들어드립니다.</p>
+              <h3 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">매일매일, 내 여행을 색칠하는 시간</h3>
+              <p className="text-muted-foreground mb-3">여행 중 경험한 순간들을 기록하고 공유하세요.</p>
+              <p className="text-muted-foreground mb-3">AI가 당신의 여행 패턴을 분석해 더 나은 추천을 제공합니다.</p>
+              <p className="text-muted-foreground">TRAVELY가 당신의 여행을 더욱 특별하게 만들어드립니다.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Second Content Section */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-secondary">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row-reverse items-center gap-8">
             <div className="flex-1">
@@ -212,10 +213,10 @@ export default function Home() {
               </div>
             </div>
             <div className="flex-1">
-              <h3 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">나의 여행이 이야기가 되는 순간</h3>
-              <p className="text-gray-600 mb-3">당신의 여행을 사진, 글로 이야기로 만들어보세요.</p>
-              <p className="text-gray-600 mb-3">좋아 한 장면이 하나의 이야기로 완성됩니다.</p>
-              <p className="text-gray-600">TRAVELY가 당신의 여행을 감동으로 가득 채워드립니다.</p>
+              <h3 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">나의 여행이 이야기가 되는 순간</h3>
+              <p className="text-muted-foreground mb-3">당신의 여행을 사진, 글로 이야기로 만들어보세요.</p>
+              <p className="text-muted-foreground mb-3">좋아 한 장면이 하나의 이야기로 완성됩니다.</p>
+              <p className="text-muted-foreground">TRAVELY가 당신의 여행을 감동으로 가득 채워드립니다.</p>
             </div>
           </div>
         </div>
@@ -224,17 +225,17 @@ export default function Home() {
       {/* Third Content Section */}
       <section className="py-16">
         <div className="container mx-auto px-4 text-center">
-          <h3 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">나의 여행이 이야기가 되는 순간</h3>
-          <p className="text-gray-600 mb-2">당신의 좋아하는 여행을 공유하세요.</p>
-          <p className="text-gray-600">TRAVELY가 당신의 모든 순간을 함께 하겠습니다.</p>
+          <h3 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">나의 여행이 이야기가 되는 순간</h3>
+          <p className="text-muted-foreground mb-2">당신의 좋아하는 여행을 공유하세요.</p>
+          <p className="text-muted-foreground">TRAVELY가 당신의 모든 순간을 함께 하겠습니다.</p>
         </div>
       </section>
 
       {/* Travel Diary Section */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-secondary">
         <div className="container mx-auto px-4">
-          <h3 className="text-2xl md:text-3xl font-bold mb-2 text-gray-900">나의 여행 일기</h3>
-          <p className="text-gray-500 mb-8">AI, 여행의 순간을 함께하세요.</p>
+          <h3 className="text-2xl md:text-3xl font-bold mb-2 text-foreground">나의 여행 일기</h3>
+          <p className="text-muted-foreground mb-8">AI, 여행의 순간을 함께하세요.</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {destinations.map((destination, index) => (
@@ -248,8 +249,8 @@ export default function Home() {
                   />
                 </div>
                 <div className="p-4">
-                  <h4 className="font-semibold text-gray-900 mb-1">{destination.title}</h4>
-                  <p className="text-sm text-gray-500">{destination.subtitle}</p>
+                  <h4 className="font-semibold text-foreground mb-1">{destination.title}</h4>
+                  <p className="text-sm text-muted-foreground">{destination.subtitle}</p>
                 </div>
               </Card>
             ))}

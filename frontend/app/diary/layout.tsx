@@ -1,4 +1,4 @@
-// frontend/app/layout.tsx
+// frontend/app/diary/layout.tsx
 
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
@@ -14,26 +14,21 @@ export const metadata: Metadata = {
   generator: 'v0.app',
 }
 
-export default function RootLayout({
+export default function DiaryLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
-      <head />
-      <body className="font-sans antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"  // ✅ 시스템 테마 자동 감지
-          enableSystem  // ✅ 시스템 설정 사용
-          disableTransitionOnChange
-        >
-          {children}
-          <Analytics />
-          <Toaster />
-        </ThemeProvider>
-      </body>
-    </html>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      {children}
+      <Analytics />
+      <Toaster />
+    </ThemeProvider>
   )
 }
