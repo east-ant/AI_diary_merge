@@ -151,11 +151,36 @@ export async function uploadImage(data: UploadImageRequest): Promise<ApiResponse
 export interface PhotoSlot {
   id: string
   photo?: string
+  imageData?: string      // ✅ 추가
+  mimeType?: string 
   keywords: string[]
   timeSlot: "morning" | "midday" | "afternoon" | "evening"
   timestamp: number
   exifData?: {
     timestamp?: Date
+    location?: {
+      latitude: number
+      longitude: number
+      locationName?: string
+    }
+    camera?: {
+      make?: string
+      model?: string
+      settings?: string
+    }
+  }
+}
+
+export interface ApiPhotoSlot {
+  id: string
+  photo?: string
+  imageData?: string      // ✅ 추가
+  mimeType?: string       // ✅ 추가
+  keywords: string[]
+  timeSlot: "morning" | "midday" | "afternoon" | "evening"
+  timestamp: number
+  exifData?: {
+    timestamp?: Date | string
     location?: {
       latitude: number
       longitude: number
