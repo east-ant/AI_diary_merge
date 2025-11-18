@@ -1,7 +1,5 @@
-//components/diary/sidebar.tsx
-
 "use client"
-import { Plus, Calendar, User, BookOpen, ChevronDown, ChevronRight, Plane, PanelLeft, X, LogOut } from "lucide-react"
+import { Plus, Calendar, User, BookOpen, ChevronDown, ChevronRight, Plane, PanelLeft, X, LogOut, CheckCircle, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -22,27 +20,27 @@ interface Diary {
   title: string
   date: string
   photoCount: number
+  isCompleted?: boolean
 }
 
 interface SidebarProps {
   diaries: Diary[]
   currentDiaryId: string | null
-  onSelectDiary: (diaryId: string) => void | Promise<void>  // ✅ async 함수 허용
+  onSelectDiary: (diaryId: string, forceShowPrintable?: boolean) => void | Promise<void>
   onNewDiary: () => void
-  onDeleteDiary: (diaryId: string) => void | Promise<void>  // ✅ async 함수 허용
+  onDeleteDiary: (diaryId: string) => void | Promise<void>
   isOpen: boolean
   onToggle: () => void
   onNavigateToDashboard: () => void
 }
 
-export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, onDeleteDiary, isOpen, onToggle, onNavigateToDashboard  }: SidebarProps) {
+export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, onDeleteDiary, isOpen, onToggle, onNavigateToDashboard }: SidebarProps) {
   const [diariesExpanded, setDiariesExpanded] = useState(true)
   const { user, signOut } = useGoogleAuth()
   const router = useRouter()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)  // ✅ 삭제 로딩 상태 추가
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  // ✅ localStorage에서 사용자 정보 가져오기
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
 
@@ -50,18 +48,15 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
     const userId = localStorage.getItem("userId")
     if (userId) {
       setUserEmail(userId)
-      // @ 앞 부분을 사용자 이름으로 설정
       setUserName(userId.split("@")[0])
     }
   }, [])
 
-  // 다이어리 삭제 확인 모달 표시
   const handleDeleteClick = (e: React.MouseEvent, diaryId: string) => {
     e.stopPropagation()
     setDeleteConfirmId(diaryId)
   }
 
-  // ✅ 삭제 확인 후 처리 - async 처리
   const confirmDelete = async () => {
     if (deleteConfirmId) {
       try {
@@ -69,19 +64,15 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
         await onDeleteDiary(deleteConfirmId)
         setDeleteConfirmId(null)
       } catch (error) {
-        console.error('Failed to delete diary:', error)
-        // 에러 처리 (토스트 메시지 등 추가 가능)
+        console.error("Failed to delete diary:", error)
       } finally {
         setIsDeleting(false)
       }
     }
   }
 
-  const cancelDelete = () => {
-    setDeleteConfirmId(null)
-  }
+  const cancelDelete = () => setDeleteConfirmId(null)
 
-  // 로그아웃 핸들러
   const handleLogout = async () => {
     await signOut()
     localStorage.removeItem("userId")
@@ -89,11 +80,27 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
     localStorage.removeItem("googleUser")
     router.push("/")
   }
-  
-  
+
+  // 완료 여부 확인
+  const checkDiaryCompletion = async (diaryId: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`http://localhost:3001/api/diaries/status/${diaryId}`)
+      const data = await res.json()
+      return data.isCompleted === true
+    } catch (e) {
+      console.error("완료 상태 확인 오류:", e)
+      return false
+    }
+  }
+
+  // 클릭 핸들러
+  const handleDiaryClick = async (diaryId: string) => {
+    const isCompleted = await checkDiaryCompletion(diaryId)
+    onSelectDiary(diaryId, isCompleted)
+  }
+
   return (
     <>
-      {/* 사이드바 메인 컨테이너 - isOpen에 따라 너비 조절 (80 or 16) */}
       <aside
         className={`
           fixed top-0 left-0 h-screen bg-sidebar border-r border-border z-40
@@ -101,36 +108,35 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           ${isOpen ? "w-80" : "w-16"}
         `}
       >
-        {/* 헤더: 로고 및 토글 버튼 */}
-          <div className="p-4 border-b border-border flex-shrink-0">
-            {isOpen ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  
-                  <div 
-                    className="cursor-pointer" 
-                    onClick={onNavigateToDashboard}
-                  >
-                    <h1 className="text-xl font-bold text-foreground">Trable Diary</h1>
-                  </div>
-                </div>
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onToggle}
-                  className="hover:bg-accent transition-all flex-shrink-0"
+        {/* ✔ 너가 수정한 헤더 버전(Stashed changes) */}
+        <div className="p-4 border-b border-border flex-shrink-0">
+          {isOpen ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div
+                  className="cursor-pointer"
+                  onClick={onNavigateToDashboard}
                 >
-                  <PanelLeft className="w-5 h-5" />
-                </Button>
+                  <h1 className="text-xl font-bold text-foreground">Trable Diary</h1>
+                </div>
               </div>
-            ) : (
-              <Button variant="ghost" size="icon" onClick={onToggle} className="w-full hover:bg-accent transition-all">
-                <PanelLeft className="w-5 h-5 rotate-180" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggle}
+                className="hover:bg-accent transition-all flex-shrink-0"
+              >
+                <PanelLeft className="w-5 h-5" />
               </Button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={onToggle} className="w-full hover:bg-accent transition-all">
+              <PanelLeft className="w-5 h-5 rotate-180" />
+            </Button>
+          )}
+        </div>
 
-        {/* 사용자 프로필 섹션 */}
+        {/* USER PROFILE BLOCK (두 버전 동일해서 그대로 유지) */}
         {isOpen ? (
           <div className="p-4 border-b border-border flex-shrink-0">
             <DropdownMenu>
@@ -146,7 +152,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <h3 className="font-medium text-foreground text-sm truncate">
-                      {userName || 'Travel Explorer'}
+                      {userName || "Travel Explorer"}
                     </h3>
                     <p className="text-xs text-muted-foreground truncate">
                       {userEmail || "사용자 이메일 없음"}
@@ -157,7 +163,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{userName || 'User'}</p>
+                    <p className="text-sm font-medium">{userName || "User"}</p>
                     <p className="text-xs text-muted-foreground">{userEmail}</p>
                   </div>
                 </DropdownMenuLabel>
@@ -185,7 +191,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{userName || 'User'}</p>
+                    <p className="text-sm font-medium">{userName || "User"}</p>
                     <p className="text-xs text-muted-foreground">{userEmail}</p>
                   </div>
                 </DropdownMenuLabel>
@@ -199,7 +205,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           </div>
         )}
 
-        {/* 새 다이어리 생성 버튼 */}
+        {/* NEW DIARY BUTTON */}
         <div className="p-4 flex-shrink-0">
           {isOpen ? (
             <Button
@@ -220,7 +226,7 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           )}
         </div>
 
-        {/* 다이어리 목록 섹션 */}
+        {/* DIARIES LIST */}
         {isOpen ? (
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             <button
@@ -248,44 +254,57 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
                       <p className="text-xs mt-1">Create your first travel diary!</p>
                     </div>
                   ) : (
-                    diaries.map((diary) => (
-                      <Card
-                        key={diary.id}
-                        onClick={() => onSelectDiary(diary.id)}
-                        className={`
-                          p-3 cursor-pointer transition-all hover:shadow-md group relative 
-                          ${
-                            currentDiaryId === diary.id
-                              ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20"
-                              : "bg-card hover:bg-accent border-border"
-                          }
-                        `}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <BookOpen className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h5 className="font-medium text-foreground text-sm mb-1 truncate">{diary.title}</h5>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center space-x-1">
-                                <Calendar className="w-3 h-3" />
-                                <span>{diary.date}</span>
+                    diaries.map((diary) => {
+                      // 아이콘 결정: 완료됨 = CheckCircle, 사진 있음 = Edit, 사진 없음 = BookOpen
+                      const DiaryIcon = diary.isCompleted
+                        ? CheckCircle
+                        : diary.photoCount > 0
+                          ? Edit
+                          : BookOpen
+
+                      const iconColor = diary.isCompleted
+                        ? "text-green-600"
+                        : diary.photoCount > 0
+                          ? "text-orange-600"
+                          : "text-primary"
+
+                      return (
+                        <Card
+                          key={diary.id}
+                          onClick={() => handleDiaryClick(diary.id)}
+                          className={`
+                            p-3 cursor-pointer transition-all hover:shadow-md group relative
+                            ${
+                              currentDiaryId === diary.id
+                                ? "bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20"
+                                : "bg-card hover:bg-accent border-border"
+                            }
+                          `}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <DiaryIcon className={`w-4 h-4 ${iconColor}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-medium text-foreground text-sm mb-1 truncate">{diary.title}</h5>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <div className="flex items-center space-x-1">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{diary.date}</span>
+                                </div>
+                                <span className="font-medium">{diary.photoCount} photos</span>
                               </div>
-                              <span className="font-medium">{diary.photoCount} photos</span>
                             </div>
                           </div>
-                        </div>
-                        {/* 다이어리 삭제 버튼 (hover 시 표시) */}
-                        <button
-                          onClick={(e) => handleDeleteClick(e, diary.id)}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                          aria-label="Delete diary"
-                        >
-                          <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-                        </button>
-                      </Card>
-                    ))
+                          <button
+                            onClick={(e) => handleDeleteClick(e, diary.id)}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                          >
+                            <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </Card>
+                      )
+                    })
                   )}
                 </div>
               </div>
@@ -299,7 +318,6 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
           </div>
         )}
 
-        {/* 푸터: 버전 정보 */}
         {isOpen && (
           <div className="p-4 border-t border-border bg-sidebar-accent flex-shrink-0">
             <p className="text-xs text-muted-foreground text-center font-medium">Travel Diary v1.0</p>
@@ -315,7 +333,6 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
         )}
       </aside>
 
-      {/* 삭제 확인 모달 */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
@@ -324,19 +341,15 @@ export function Sidebar({ diaries, currentDiaryId, onSelectDiary, onNewDiary, on
               Are you sure you want to delete this diary? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">
-              <Button
-                variant="outline"
-                onClick={cancelDelete}
-                disabled={isDeleting}  // ✅ 삭제 중일 때 버튼 비활성화
-              >
+              <Button variant="outline" onClick={cancelDelete} disabled={isDeleting}>
                 No
               </Button>
               <Button
                 onClick={confirmDelete}
-                disabled={isDeleting}  // ✅ 삭제 중일 때 버튼 비활성화
-                className="bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white font-medium"
               >
-                {isDeleting ? 'Deleting...' : 'Yes'}
+                {isDeleting ? "Deleting..." : "Yes"}
               </Button>
             </div>
           </div>

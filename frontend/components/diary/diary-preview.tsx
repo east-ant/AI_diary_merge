@@ -36,6 +36,7 @@ interface DiaryPreviewProps {
   onBack: () => void
   diaryId: string
   userId: string
+  onComplete?: () => void
 }
 
 export function DiaryPreview({
@@ -44,6 +45,7 @@ export function DiaryPreview({
   onBack,
   diaryId,
   userId,
+  onComplete,
 }: DiaryPreviewProps) {
   const [aiContent, setAiContent] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -53,7 +55,6 @@ export function DiaryPreview({
   const [showPrintablePage, setShowPrintablePage] = useState(false)
   const { toast } = useToast()
 
-  // ✅ AI 다이어리 생성
   const generateAiDiary = async () => {
     if (photoSlots.length === 0) {
       toast({
@@ -67,7 +68,6 @@ export function DiaryPreview({
     setIsGenerating(true)
 
     try {
-      // 키워드 추출
       const keywords = photoSlots
         .flatMap((slot) => slot.keywords)
         .filter((kw) => kw)
@@ -75,7 +75,6 @@ export function DiaryPreview({
 
       console.log("📤 AI 생성 요청:", { diaryTitle, keywords, photoCount: photoSlots.length })
 
-      // AI 다이어리 생성 요청
       const response = await fetch("/api/generate-diary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,7 +111,6 @@ export function DiaryPreview({
     }
   }
 
-  // ✅ AI 다이어리 저장 (백엔드에 저장)
   const saveAiDiary = async () => {
     setIsSaving(true)
 
@@ -124,7 +122,6 @@ export function DiaryPreview({
           diaryId,
           userId,
           content: editedAiContent,
-          // ✅ photoSlots 제외 (용량 문제 해결)
         }),
       })
 
@@ -133,13 +130,11 @@ export function DiaryPreview({
       if (data.success) {
         setAiContent(editedAiContent)
         setIsEditingAi(false)
-        
+
         toast({
           title: "저장 완료",
           description: "수정사항이 저장되었습니다!",
         })
-
-        // ✅ 읽기 모드로 돌아감 (수정 모드 해제만)
       } else {
         throw new Error(data.error || "저장 실패")
       }
@@ -155,35 +150,33 @@ export function DiaryPreview({
     }
   }
 
-  // ✅ 편집 시작
   const startEditing = () => {
     setEditedAiContent(aiContent)
     setIsEditingAi(true)
   }
 
-  // ✅ 편집 취소
   const cancelEditing = () => {
     setIsEditingAi(false)
     setEditedAiContent("")
   }
 
-  // ✅ Step 3: PrintableDiaryPage 표시 (돌아가기 버튼은 PrintableDiaryPage에만)
   if (showPrintablePage) {
     return (
       <div className="w-full">
-        <PrintableDiaryPage 
-          photoSlots={photoSlots} 
-          diaryText={aiContent} 
+        <PrintableDiaryPage
+          photoSlots={photoSlots}
+          diaryText={aiContent}
           title={diaryTitle}
           onBack={() => setShowPrintablePage(false)}
+          diaryId={diaryId}
+          userId={userId}
+          onComplete={onComplete}
         />
       </div>
     )
   }
 
-  // ✅ Step 2: AI 다이어리 생성 및 편집
   if (!aiContent) {
-    // ✅ Step 2-1: AI 생성 단계
     return (
       <div className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center space-x-3 mb-8">
@@ -194,7 +187,6 @@ export function DiaryPreview({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 왼쪽: 사진들 - 세로 스크롤 */}
           <div>
             <h3 className="text-lg font-semibold text-foreground mb-4">사진</h3>
             <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
@@ -228,7 +220,6 @@ export function DiaryPreview({
             </div>
           </div>
 
-          {/* 오른쪽: 생성 요청 */}
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-foreground">생성된 다이어리</h3>
@@ -271,7 +262,6 @@ export function DiaryPreview({
     )
   }
 
-  // ✅ Step 2-2: AI 생성 완료, 편집 단계
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="flex items-center space-x-3 mb-8">
@@ -282,7 +272,6 @@ export function DiaryPreview({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* 왼쪽: 사진들 - 세로 스크롤 */}
         <div>
           <h3 className="text-lg font-semibold text-foreground mb-4">사진</h3>
           <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
@@ -316,14 +305,12 @@ export function DiaryPreview({
           </div>
         </div>
 
-        {/* 오른쪽: 생성된 다이어리 + 편집 */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-foreground">생성된 다이어리</h3>
           </div>
 
           {isEditingAi ? (
-            // ✅ 편집 모드
             <div className="space-y-3">
               <textarea
                 value={editedAiContent}
@@ -354,7 +341,6 @@ export function DiaryPreview({
               </div>
             </div>
           ) : (
-            // ✅ 읽기 모드
             <div className="space-y-3">
               <Card className="p-6 bg-card border-border min-h-80 max-h-80 overflow-y-auto">
                 <p className="text-foreground leading-relaxed whitespace-pre-wrap text-sm">

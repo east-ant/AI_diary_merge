@@ -4,6 +4,7 @@ import type React from "react"
 import { useRef, useState } from "react"
 import { ImageIcon, Upload, X, Printer, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import html2canvas from "html2canvas"
 
 interface ExifData {
   timestamp?: Date | string
@@ -35,26 +36,24 @@ interface PrintableDiaryPageProps {
   diaryText: string
   title: string
   onBack?: () => void
+  diaryId?: string
+  userId?: string
+  onComplete?: () => void
 }
 
-// ✅ Helper 함수: timestamp를 Date 객체로 변환
+// Helper: timestamp → Date
 function getDateFromTimestamp(timestamp: Date | string | undefined): Date | null {
   if (!timestamp) return null
-  
-  if (timestamp instanceof Date) {
-    return timestamp
-  }
-  
+  if (timestamp instanceof Date) return timestamp
   try {
     const date = new Date(timestamp)
-    if (isNaN(date.getTime())) return null
-    return date
+    return isNaN(date.getTime()) ? null : date
   } catch {
     return null
   }
 }
 
-// ✅ Helper 함수: 이미지 URL 생성 (Base64 또는 URL)
+// Helper: Base64 or URL
 function getImageUrl(slot: PhotoSlot): string {
   if (slot.imageData && slot.mimeType) {
     return `data:${slot.mimeType};base64,${slot.imageData}`
@@ -62,24 +61,105 @@ function getImageUrl(slot: PhotoSlot): string {
   return slot.photo || "/placeholder.svg"
 }
 
-export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: PrintableDiaryPageProps) {
+// Helper: oklch 색상을 hex로 변환 (html2canvas 호환성)
+function replaceOklchWithHex(element: HTMLElement): Map<HTMLElement, string> {
+  const originalStyles = new Map<HTMLElement, string>()
+  
+  function convertOklchToHex(oklchStr: string): string {
+    // oklch(L C H) 형식을 감지
+    const oklchMatch = oklchStr.match(/oklch\(([\d.]+%?)\s+([\d.]+)\s+([\d.]+)\s*\/?\s*([\d.%]*)\)/)
+    
+    if (!oklchMatch) {
+      // oklch가 아닌 경우 그대로 반환
+      return oklchStr
+    }
+
+    // 간단한 oklch to hex 변환 (근사값)
+    // 완벽한 변환이 아니라 html2canvas 호환성을 위한 근사값입니다
+    try {
+      const l = parseFloat(oklchMatch[1])
+      const c = parseFloat(oklchMatch[2])
+      const h = parseFloat(oklchMatch[3])
+
+      // oklch를 RGB로 근사 변환
+      // 이것은 완벽한 변환이 아니지만 html2canvas 호환성을 위한 실용적인 해결책입니다
+      const hRad = (h * Math.PI) / 180
+
+      // 간단한 근사 공식
+      const r = Math.round(255 * (l / 100 + c * 0.3 * Math.cos(hRad)))
+      const g = Math.round(255 * (l / 100 + c * 0.3 * Math.sin(hRad)))
+      const b = Math.round(255 * (l / 100 - c * 0.3))
+
+      // 값을 0-255 범위로 클램프
+      const clamp = (val: number) => Math.max(0, Math.min(255, val))
+      const finalR = clamp(r)
+      const finalG = clamp(g)
+      const finalB = clamp(b)
+
+      return `rgb(${finalR}, ${finalG}, ${finalB})`
+    } catch {
+      return oklchStr
+    }
+  }
+
+  // 재귀적으로 모든 요소 처리
+  const walkTree = (el: HTMLElement) => {
+    const style = window.getComputedStyle(el)
+    
+    // 배경색 처리
+    const bgColor = style.backgroundColor
+    if (bgColor && bgColor.includes("oklch")) {
+      originalStyles.set(el, el.style.backgroundColor || "")
+      el.style.backgroundColor = convertOklchToHex(bgColor)
+    }
+
+    // 텍스트 색 처리
+    const color = style.color
+    if (color && color.includes("oklch")) {
+      originalStyles.set(el, el.style.color || "")
+      el.style.color = convertOklchToHex(color)
+    }
+
+    // 테두리 색 처리
+    const borderColor = style.borderColor
+    if (borderColor && borderColor.includes("oklch")) {
+      originalStyles.set(el, el.style.borderColor || "")
+      el.style.borderColor = convertOklchToHex(borderColor)
+    }
+
+    // 자식 요소들에 대해 재귀 처리
+    Array.from(el.children).forEach((child) => {
+      if (child instanceof HTMLElement) {
+        walkTree(child)
+      }
+    })
+  }
+
+  walkTree(element)
+  return originalStyles
+}
+
+export function PrintableDiaryPage({
+  photoSlots,
+  diaryText,
+  title,
+  onBack,
+  diaryId,
+  userId,
+  onComplete,
+}: PrintableDiaryPageProps) {
   const pageRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // --- 너가 수정한 font system 적용 ---
   const [fontSize, setFontSize] = useState(18)
   const [textColor, setTextColor] = useState("#1f2937")
-  const [fontFamily, setFontFamily] = useState("Caveat")
+  const [fontFamily, setFontFamily] = useState("Cafe24Shiningstar")
 
+  // --- 너가 수정한 이모지 스티커 구조 적용 (페이지별로 관리) ---
   const [decorationPhotos, setDecorationPhotos] = useState<
-    Array<{ 
-      id: string
-      src: string
-      x: number
-      y: number
-      width: number
-      height: number
-    }>
-  >([])
+    Record<number, Array<{ id: string; src: string; x: number; y: number; width: number; height: number }>>
+  >({})
 
   const [uploadedPhotos, setUploadedPhotos] = useState<Array<{ id: string; src: string }>>([
     { id: "default-1", src: "/emotion/cw1.png" },
@@ -120,21 +200,37 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: Pri
     { id: "default-36", src: "/emotion/yj6.png" },
     { id: "default-37", src: "/emotion/yj7.png" },
   ])
-  
+
   const [draggedPhotoSrc, setDraggedPhotoSrc] = useState<string | null>(null)
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null)
-  
-  // ✅ 크기 조절 핸들
+  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0)
+
+  // --- 너가 만든 크기 조절 state ---
   const [resizingPhotoId, setResizingPhotoId] = useState<string | null>(null)
   const [resizeHandle, setResizeHandle] = useState<string | null>(null)
-  const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number; startX: number; startY: number } | null>(null)
+  const [resizeStart, setResizeStart] = useState<{
+    x: number
+    y: number
+    width: number
+    height: number
+    startX: number
+    startY: number
+  } | null>(null)
 
+  const [isSavingComplete, setIsSavingComplete] = useState(false)
+  const [currentPageElement, setCurrentPageElement] = useState<HTMLElement | null>(null)
+
+  // --- 사진 위치 드래그 state ---
+  const [photoPositions, setPhotoPositions] = useState<Record<string, { left: number; top: number }>>({})
+  const [draggingPhotoSlotId, setDraggingPhotoSlotId] = useState<string | null>(null)
+  const [photoDragStart, setPhotoDragStart] = useState<{ x: number; y: number } | null>(null)
+
+  // 파일 업로드
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
-
     Array.from(files).forEach((file) => {
       const reader = new FileReader()
       reader.onload = (event) => {
@@ -143,52 +239,66 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: Pri
       }
       reader.readAsDataURL(file)
     })
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handlePhotoDragStart = (photoSrc: string) => {
     setDraggedPhotoSrc(photoSrc)
   }
 
-  const handlePageDrop = (e: React.DragEvent) => {
+  // Drop
+  const handlePageDrop = (e: React.DragEvent, pageElement: HTMLDivElement, pageIndex: number) => {
     e.preventDefault()
-    if (!draggedPhotoSrc || !pageRef.current) return
+    if (!draggedPhotoSrc) return
 
-    const rect = pageRef.current.getBoundingClientRect()
+    const rect = pageElement.getBoundingClientRect()
+    const defaultW = 20 * 3.78
+    const defaultH = 20 * 3.78
 
-    const defaultWidthPx = 20 * 3.78
-    const defaultHeightPx = 20 * 3.78
+    // Calculate position and constrain within page boundaries
+    let x = e.clientX - rect.left - defaultW / 2
+    let y = e.clientY - rect.top - defaultH / 2
 
-    const x = e.clientX - rect.left - defaultWidthPx / 2
-    const y = e.clientY - rect.top - defaultHeightPx / 2
+    // Page boundaries (accounting for page dimensions)
+    const pageWidth = rect.width
+    const pageHeight = rect.height
 
-    setDecorationPhotos([
+    // Clamp position so emoji stays within bounds
+    x = Math.max(0, Math.min(x, pageWidth - defaultW))
+    y = Math.max(0, Math.min(y, pageHeight - defaultH))
+
+    const currentPagePhotos = decorationPhotos[pageIndex] || []
+
+    setDecorationPhotos({
       ...decorationPhotos,
-      {
-        id: `photo-${Date.now()}`,
-        src: draggedPhotoSrc,
-        x,
-        y,
-        width: 20,
-        height: 20,
-      },
-    ])
+      [pageIndex]: [
+        ...currentPagePhotos,
+        {
+          id: `photo-${Date.now()}`,
+          src: draggedPhotoSrc,
+          x,
+          y,
+          width: 20,
+          height: 20,
+        },
+      ],
+    })
 
     setDraggedPhotoSrc(null)
   }
 
-  const handlePhotoMouseDown = (e: React.MouseEvent, photoId: string) => {
+  // MouseDown for move
+  const handlePhotoMouseDown = (e: React.MouseEvent, photoId: string, pageElement: HTMLElement, pageIndex: number) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const photo = decorationPhotos.find((p) => p.id === photoId)
-    if (!photo || !pageRef.current) return
+    const currentPagePhotos = decorationPhotos[pageIndex] || []
+    const photo = currentPagePhotos.find((p) => p.id === photoId)
+    if (!photo) return
 
-    const rect = pageRef.current.getBoundingClientRect()
-
+    const rect = pageElement.getBoundingClientRect()
+    setCurrentPageElement(pageElement)
+    setCurrentPageIndex(pageIndex)
     setDraggingPhotoId(photoId)
     setSelectedPhotoId(photoId)
     setDragOffset({
@@ -197,16 +307,19 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: Pri
     })
   }
 
-  // ✅ 크기 조절 핸들 마우스다운
-  const handleResizeMouseDown = (e: React.MouseEvent, photoId: string, handle: string) => {
+  // MouseDown for resize
+  const handleResizeMouseDown = (e: React.MouseEvent, photoId: string, handle: string, pageElement: HTMLElement, pageIndex: number) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const photo = decorationPhotos.find((p) => p.id === photoId)
-    if (!photo || !pageRef.current) return
+    const currentPagePhotos = decorationPhotos[pageIndex] || []
+    const photo = currentPagePhotos.find((p) => p.id === photoId)
+    if (!photo) return
 
-    const rect = pageRef.current.getBoundingClientRect()
+    const rect = pageElement.getBoundingClientRect()
 
+    setCurrentPageElement(pageElement)
+    setCurrentPageIndex(pageIndex)
     setResizingPhotoId(photoId)
     setResizeHandle(handle)
     setSelectedPhotoId(photoId)
@@ -215,476 +328,635 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: Pri
       y: e.clientY - rect.top,
       width: photo.width,
       height: photo.height,
-      startX: photo.x,  // ✅ 초기 x 위치 저장
-      startY: photo.y,  // ✅ 초기 y 위치 저장
+      startX: photo.x,
+      startY: photo.y,
     })
   }
 
-  const handlePageMouseMove = (e: React.MouseEvent) => {
-    if (!pageRef.current) return
+  // MouseMove
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!currentPageElement) return
 
-    const rect = pageRef.current.getBoundingClientRect()
-    const currentX = e.clientX - rect.left
-    const currentY = e.clientY - rect.top
+    const rect = currentPageElement.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
 
-    // 크기 조절 중
-    if (resizingPhotoId && resizeStart && resizeHandle) {
-      const photo = decorationPhotos.find((p) => p.id === resizingPhotoId)
-      if (!photo) return
+    // Page boundaries
+    const pageWidth = rect.width
+    const pageHeight = rect.height
 
-      const deltaX = (currentX - resizeStart.x) / 3.78  // px를 mm로 변환
-      const deltaY = (currentY - resizeStart.y) / 3.78
+    if (draggingPhotoId && !resizingPhotoId) {
+      const currentPagePhotos = decorationPhotos[currentPageIndex] || []
 
-      let newWidth = resizeStart.width
-      let newHeight = resizeStart.height
-      let newX = resizeStart.startX  // ✅ 초기 x 위치 사용
-      let newY = resizeStart.startY  // ✅ 초기 y 위치 사용
+      setDecorationPhotos({
+        ...decorationPhotos,
+        [currentPageIndex]: currentPagePhotos.map((p) => {
+          if (p.id !== draggingPhotoId) return p
 
-      // 8개의 핸들 각각에 대한 처리 - 수정된 버전
-      switch (resizeHandle) {
-        case 'nw': // 북서 (좌상)
-          newWidth = Math.max(10, resizeStart.width - deltaX)
-          newHeight = Math.max(10, resizeStart.height - deltaY)
-          newX = resizeStart.startX + (resizeStart.width - newWidth) * 3.78
-          newY = resizeStart.startY + (resizeStart.height - newHeight) * 3.78
-          break
-        case 'n': // 북 (상)
-          newHeight = Math.max(10, resizeStart.height - deltaY)
-          newY = resizeStart.startY + (resizeStart.height - newHeight) * 3.78
-          break
-        case 'ne': // 북동 (우상)
-          newWidth = Math.max(10, resizeStart.width + deltaX)
-          newHeight = Math.max(10, resizeStart.height - deltaY)
-          newY = resizeStart.startY + (resizeStart.height - newHeight) * 3.78
-          break
-        case 'w': // 서 (좌)
-          newWidth = Math.max(10, resizeStart.width - deltaX)
-          newX = resizeStart.startX + (resizeStart.width - newWidth) * 3.78
-          break
-        case 'e': // 동 (우)
-          newWidth = Math.max(10, resizeStart.width + deltaX)
-          break
-        case 'sw': // 남서 (좌하)
-          newWidth = Math.max(10, resizeStart.width - deltaX)
-          newHeight = Math.max(10, resizeStart.height + deltaY)
-          newX = resizeStart.startX + (resizeStart.width - newWidth) * 3.78
-          break
-        case 's': // 남 (하)
-          newHeight = Math.max(10, resizeStart.height + deltaY)
-          break
-        case 'se': // 남동 (우하)
-          newWidth = Math.max(10, resizeStart.width + deltaX)
-          newHeight = Math.max(10, resizeStart.height + deltaY)
-          break
-      }
+          const widthPx = p.width * 3.78
+          const heightPx = p.height * 3.78
 
-      setDecorationPhotos(decorationPhotos.map((p) => 
-        p.id === resizingPhotoId 
-          ? { ...p, width: newWidth, height: newHeight, x: newX, y: newY }
-          : p
-      ))
-      return
-    }
+          // Calculate new position
+          let newX = mouseX - dragOffset.x
+          let newY = mouseY - dragOffset.y
 
-    // 이동 중
-    if (draggingPhotoId) {
-      const x = currentX - dragOffset.x
-      const y = currentY - dragOffset.y
+          // Constrain within page boundaries
+          newX = Math.max(0, Math.min(newX, pageWidth - widthPx))
+          newY = Math.max(0, Math.min(newY, pageHeight - heightPx))
 
-      setDecorationPhotos(decorationPhotos.map((photo) => 
-        photo.id === draggingPhotoId ? { ...photo, x, y } : photo
-      ))
+          return { ...p, x: newX, y: newY }
+        })
+      })
+    } else if (resizingPhotoId && resizeHandle && resizeStart) {
+      const deltaX = mouseX - resizeStart.x
+      const deltaY = mouseY - resizeStart.y
+
+      const currentPagePhotos = decorationPhotos[currentPageIndex] || []
+
+      setDecorationPhotos({
+        ...decorationPhotos,
+        [currentPageIndex]: currentPagePhotos.map((p) => {
+          if (p.id !== resizingPhotoId) return p
+
+          let newWidth = resizeStart.width
+          let newHeight = resizeStart.height
+          let newX = resizeStart.startX
+          let newY = resizeStart.startY
+
+          const minSize = 5
+
+          if (resizeHandle.includes("e")) newWidth = Math.max(minSize, resizeStart.width + deltaX)
+          if (resizeHandle.includes("w")) {
+            newWidth = Math.max(minSize, resizeStart.width - deltaX)
+            newX = resizeStart.startX + (resizeStart.width - newWidth)
+          }
+          if (resizeHandle.includes("s")) newHeight = Math.max(minSize, resizeStart.height + deltaY)
+          if (resizeHandle.includes("n")) {
+            newHeight = Math.max(minSize, resizeStart.height - deltaY)
+            newY = resizeStart.startY + (resizeStart.height - newHeight)
+          }
+
+          // Constrain within page boundaries
+          const widthPx = newWidth * 3.78
+          const heightPx = newHeight * 3.78
+
+          // Ensure emoji doesn't extend beyond page
+          newX = Math.max(0, Math.min(newX, pageWidth - widthPx))
+          newY = Math.max(0, Math.min(newY, pageHeight - heightPx))
+
+          return { ...p, width: newWidth, height: newHeight, x: newX, y: newY }
+        })
+      })
     }
   }
 
-  const handlePageMouseUp = () => {
+  // MouseUp
+  const handleMouseUp = () => {
     setDraggingPhotoId(null)
     setResizingPhotoId(null)
     setResizeHandle(null)
     setResizeStart(null)
+    setCurrentPageElement(null)
   }
 
-  const handlePhotoDoubleClick = (photoId: string) => {
-    setDecorationPhotos(decorationPhotos.filter((photo) => photo.id !== photoId))
-    if (selectedPhotoId === photoId) {
-      setSelectedPhotoId(null)
-    }
+  const handlePhotoDoubleClick = (photoId: string, pageIndex: number) => {
+    const currentPagePhotos = decorationPhotos[pageIndex] || []
+    setDecorationPhotos({
+      ...decorationPhotos,
+      [pageIndex]: currentPagePhotos.filter((p) => p.id !== photoId)
+    })
   }
 
   const handleRemoveUploadedPhoto = (photoId: string) => {
     setUploadedPhotos(uploadedPhotos.filter((photo) => photo.id !== photoId))
   }
 
-  const handlePrint = () => {
-    window.print()
+  // --- 사진 드래그 핸들러 ---
+  const handlePhotoSlotMouseDown = (e: React.MouseEvent, photoSlotId: string, containerElement: HTMLElement) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const rect = containerElement.getBoundingClientRect()
+    setDraggingPhotoSlotId(photoSlotId)
+
+    const currentPos = photoPositions[photoSlotId] || { left: 0, top: 0 }
+    setPhotoDragStart({
+      x: e.clientX - currentPos.left,
+      y: e.clientY - currentPos.top
+    })
   }
 
+  const handlePhotoSlotMouseMove = (e: React.MouseEvent, containerElement: HTMLElement) => {
+    if (!draggingPhotoSlotId || !photoDragStart) return
+
+    const rect = containerElement.getBoundingClientRect()
+    const newLeft = e.clientX - rect.left - photoDragStart.x
+    const newTop = e.clientY - rect.top - photoDragStart.y
+
+    setPhotoPositions({
+      ...photoPositions,
+      [draggingPhotoSlotId]: { left: newLeft, top: newTop }
+    })
+  }
+
+  const handlePhotoSlotMouseUp = () => {
+    setDraggingPhotoSlotId(null)
+    setPhotoDragStart(null)
+  }
+
+  const handleCompleteClick = async () => {
+    console.log("🔵 작성 완료 버튼 클릭됨!", {
+      diaryId,
+      diaryIdType: typeof diaryId,
+      diaryIdValue: diaryId,
+      userId,
+      userIdType: typeof userId,
+      userIdValue: userId
+    })
+
+    if (!diaryId) {
+      console.error("❌ diaryId 없음:", diaryId)
+      alert(`diaryId가 없습니다.\ndiaryId: ${diaryId}`)
+      return
+    }
+
+    if (!userId) {
+      console.error("❌ userId 없음:", userId)
+      alert(`userId가 없습니다.\nuserId: ${userId}`)
+      return
+    }
+
+    setIsSavingComplete(true)
+
+    try {
+      console.log("📸 다이어리 페이지를 이미지로 변환 중...")
+
+      // 모든 페이지 요소 찾기
+      const pages = document.querySelectorAll('.diary-page')
+      const imageDataArray: string[] = []
+
+      // 각 페이지를 개별적으로 캡처
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i] as HTMLElement
+        console.log(`📸 페이지 ${i + 1}/${pages.length} 캡처 중...`)
+
+        // oklch 색상 호환성 처리
+        const originalStyles = replaceOklchWithHex(page)
+
+        const canvas = await html2canvas(page, {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          logging: false,
+          allowTaint: true,
+          useCORS: true,
+          imageTimeout: 10000,
+          width: page.offsetWidth,
+          height: page.offsetHeight,
+          windowWidth: page.scrollWidth,
+          windowHeight: page.scrollHeight,
+          ignoreElements: (el) => {
+            // 컨트롤 요소만 제외 (resize handles, hover rings 등)
+            return (
+              el.classList.contains("print:hidden") ||
+              el.classList.contains("ring-2") ||
+              el.classList.contains("cursor-nwse-resize") ||
+              el.classList.contains("cursor-nesw-resize") ||
+              el.classList.contains("cursor-ns-resize") ||
+              el.classList.contains("cursor-ew-resize")
+            )
+          },
+        })
+
+        // 원래 스타일 복원
+        originalStyles.forEach((original, el) => {
+          if (original) {
+            el.style.cssText = original
+          }
+        })
+
+        const imageData = canvas.toDataURL("image/png").split(",")[1]
+        imageDataArray.push(imageData)
+      }
+
+      console.log("📤 완료된 다이어리 저장 중:", {
+        diaryId,
+        userId,
+        pageCount: imageDataArray.length,
+      })
+
+      const response = await fetch("http://localhost:3001/api/diaries/save-printable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          diaryId,
+          userId,
+          imageData: imageDataArray, // 배열로 전송
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log("✅ 다이어리 완료 저장 성공")
+        if (onComplete) {
+          onComplete()
+        }
+      } else {
+        throw new Error(data.error || "저장 실패")
+      }
+    } catch (error) {
+      console.error("❌ 다이어리 완료 저장 오류:", error)
+      alert(error instanceof Error ? error.message : "다이어리 저장에 실패했습니다.")
+    } finally {
+      setIsSavingComplete(false)
+    }
+  }
+
+  // Paragraphs
   const paragraphs = diaryText.split("\n\n").filter((p) => p.trim())
 
+  // 사진과 문단을 2개씩 그룹으로 나누기 (페이지 분할)
+  const ITEMS_PER_PAGE = 2
+  const totalPages = Math.ceil(paragraphs.length / ITEMS_PER_PAGE)
+  const pages: Array<{ paragraphs: string[]; slots: PhotoSlot[] }> = []
+
+  for (let i = 0; i < totalPages; i++) {
+    const startIdx = i * ITEMS_PER_PAGE
+    const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, paragraphs.length)
+    pages.push({
+      paragraphs: paragraphs.slice(startIdx, endIdx),
+      slots: photoSlots.slice(startIdx, endIdx),
+    })
+  }
+
   return (
-    <div className="w-full print:p-0 print:m-0">
-      {/* Top Navigation Bar */}
-      <div className="flex items-center gap-3 mb-6 print:hidden px-6 sticky top-0 z-50 py-3 bg-white/90 backdrop-blur-sm border-b border-gray-200">
-        {/* Left: Back Button - 고정 위치 */}
-        <div className="absolute" style={{ left: '300px' }}>  {/* ← 이 숫자를 조절하세요 (기본 24px) */}
-          <Button variant="outline" onClick={onBack} size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            돌아가기
-          </Button>
-        </div>
-
-        {/* Center: Text Formatting Controls */}
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm mx-auto">
-          {/* Font Family Selector */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">폰트:</label>
-            <select
-              value={fontFamily}
-              onChange={(e) => setFontFamily(e.target.value)}
-              className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="Caveat">Caveat</option>
-              <option value="Patrick Hand">Patrick Hand</option>
-              <option value="Indie Flower">Indie Flower</option>
-              <option value="Nanum Pen Script">나눔손글씨</option>
-            </select>
-          </div>
-
-          {/* Font Size Selector */}
-          <div className="flex items-center gap-2 border-l border-gray-300 pl-3">
-            <label className="text-sm text-gray-600">크기:</label>
-            <input
-              type="number"
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              min="12"
-              max="36"
-              className="border border-gray-300 rounded px-2 py-1 w-16 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-500">px</span>
-          </div>
-
-          {/* Text Color Picker */}
-          <div className="flex items-center gap-2 border-l border-gray-300 pl-3">
-            <label className="text-sm text-gray-600">전체 색상:</label>
-            <input
-              type="color"
-              value={textColor}
-              onChange={(e) => setTextColor(e.target.value)}
-              className="w-10 h-8 border border-gray-300 rounded cursor-pointer"
-            />
-          </div>
-        </div>
-
-          {/* Right: Print Button - 고정 위치 */}
-            <div className="absolute" style={{ right: '300px' }}>  {/* ← 이 숫자를 조절하세요 (기본 24px) */}
-              <Button onClick={handlePrint} variant="outline" size="sm">
-                <Printer className="w-4 h-4 mr-2" />
-                인쇄
+    <div
+      className="min-h-screen bg-gray-50"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* Top Controls */}
+      <div className="print:hidden sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between px-6 py-3">
+          {/* 왼쪽: 뒤로가기 */}
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <Button onClick={onBack} variant="outline" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                뒤로가기
               </Button>
-            </div>
-          </div>
-
-      {/* Main content layout - diary page and sidebar */}
-      <div className="flex gap-8 items-start justify-center print:block print:m-0 print:p-0 px-6">
-        {/* A4 Page Container */}
-        <div className="flex-shrink-0 print:m-0">
-          <div
-            ref={pageRef}
-            className="diary-page bg-[#fefdfb] shadow-2xl relative print:shadow-none"
-            onMouseUp={handlePageMouseUp}
-            onDrop={handlePageDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onMouseMove={handlePageMouseMove}
-            onClick={() => setSelectedPhotoId(null)}
-            style={{
-              width: "210mm",
-              minHeight: "297mm",
-              padding: "20mm",
-              fontFamily: `'${fontFamily}', cursive`,
-            }}
-          >
-            {/* Title */}
-            <div className="text-center mb-8">
-              <h1 className="text-5xl font-bold text-gray-800 mb-2" style={{ fontFamily: `'${fontFamily}', cursive` }}>
-                {title}
-              </h1>
-              <div className="flex items-center justify-center gap-2">
-                <div className="h-px w-16 bg-gray-400"></div>
-                <p className="text-xl text-gray-600">
-                  {new Date().toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </p>
-                <div className="h-px w-16 bg-gray-400"></div>
-              </div>
-            </div>
-
-            {/* Photos and Text Layout */}
-            <div className="space-y-6">
-              {photoSlots.map((slot, index) => {
-                const isEven = index % 2 === 0
-                const paragraph = paragraphs[index] || ""
-                const location = slot.exifData?.location?.locationName
-                
-                const timestampDate = getDateFromTimestamp(slot.exifData?.timestamp)
-                const time = timestampDate?.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-
-                const imageUrl = getImageUrl(slot)
-
-                return (
-                  <div key={slot.id} className={`flex gap-4 items-start ${isEven ? "flex-row" : "flex-row-reverse"}`}>
-                    {/* Photo */}
-                    <div className="flex-shrink-0 relative">
-                      <div
-                        className="bg-white p-1.5 shadow-lg transform rotate-[-2deg] hover:rotate-0 transition-transform"
-                        style={{
-                          width: "60mm",
-                          height: "80mm",
-                        }}
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={`Travel moment ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          style={{ aspectRatio: "3/4" }}
-                        />
-                      </div>
-
-                      {/* Photo caption */}
-                      <div className="mt-1 text-center">
-                        {time && (
-                          <p className="text-sm text-gray-700" style={{ fontFamily: `'${fontFamily}', cursive` }}>
-                            {time}
-                          </p>
-                        )}
-                        {location && (
-                          <p
-                            className="text-xs text-gray-600 flex items-center justify-center gap-1"
-                            style={{ fontFamily: `'${fontFamily}', cursive` }}
-                          >
-                            <span>📍</span> {location}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Decorative doodles */}
-                      {index === 0 && <div className="absolute -top-3 -right-3 text-2xl transform rotate-12">✨</div>}
-                      {index === 1 && (
-                        <div className="absolute -bottom-2 -left-2 text-2xl transform -rotate-12">🌸</div>
-                      )}
-                    </div>
-
-                    {/* Text content */}
-                    <div className="flex-1 pt-2">
-                      <div className="space-y-2">
-                        {/* Keywords as tags */}
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {slot.keywords.slice(0, 3).map((keyword, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-yellow-100 text-gray-700 text-sm rounded-full border border-yellow-300"
-                              style={{ fontFamily: `'${fontFamily}', cursive` }}
-                            >
-                              #{keyword}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Diary text */}
-                        <p
-                          className="leading-relaxed select-text cursor-text"
-                          style={{
-                            fontFamily: `'${fontFamily}', cursive`,
-                            fontSize: `${fontSize}px`,
-                            lineHeight: "1.7",
-                            color: textColor,
-                          }}
-                        >
-                          {paragraph}
-                        </p>
-
-                        {/* Decorative underline */}
-                        <div className="mt-3">
-                          <svg width="80" height="6" viewBox="0 0 100 8" className="opacity-40">
-                            <path
-                              d="M 0 4 Q 25 0, 50 4 T 100 4"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              fill="none"
-                              className="text-gray-600"
-                            />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Footer decoration */}
-            <div className="mt-12 pt-6 border-t-2 border-dashed border-gray-300 text-center">
-              <p className="text-2xl text-gray-600" style={{ fontFamily: `'${fontFamily}', cursive` }}>
-                ✈️ 여행의 끝 ✈️
-              </p>
-            </div>
-
-            {/* ✅ 데코레이션 이모지들 (파워포인트 스타일 크기 조절) */}
-            {decorationPhotos.map((photo) => {
-              const widthPx = photo.width * 3.78
-              const heightPx = photo.height * 3.78
-              const isSelected = selectedPhotoId === photo.id
-
-              return (
-                <div
-                  key={photo.id}
-                  className={`absolute cursor-move print:cursor-default transition-all ${
-                    isSelected ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-400'
-                  }`}
-                  style={{
-                    left: `${photo.x}px`,
-                    top: `${photo.y}px`,
-                    width: `${widthPx}px`,
-                    height: `${heightPx}px`,
-                  }}
-                  onMouseDown={(e) => handlePhotoMouseDown(e, photo.id)}
-                  onDoubleClick={() => handlePhotoDoubleClick(photo.id)}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedPhotoId(photo.id)
-                  }}
-                  title="클릭으로 선택, 드래그로 이동, 더블클릭으로 삭제"
-                >
-                  <img
-                    src={photo.src || "/placeholder.svg"}
-                    alt="Decoration"
-                    className="w-full h-full object-cover rounded pointer-events-none"
-                  />
-                  
-                  {/* ✅ 크기 조절 핸들 (선택된 이모지에만 표시) */}
-                  {isSelected && (
-                    <>
-                      {/* 모서리 핸들 */}
-                      <div
-                        className="absolute -top-1 -left-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nwse-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'nw')}
-                      />
-                      <div
-                        className="absolute -top-1 -right-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nesw-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'ne')}
-                      />
-                      <div
-                        className="absolute -bottom-1 -left-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nesw-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'sw')}
-                      />
-                      <div
-                        className="absolute -bottom-1 -right-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nwse-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'se')}
-                      />
-                      
-                      {/* 변 중앙 핸들 */}
-                      <div
-                        className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ns-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'n')}
-                      />
-                      <div
-                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ns-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 's')}
-                      />
-                      <div
-                        className="absolute -left-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'w')}
-                      />
-                      <div
-                        className="absolute -right-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize print:hidden"
-                        onMouseDown={(e) => handleResizeMouseDown(e, photo.id, 'e')}
-                      />
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Sidebar for uploaded photos */}
-        <div className="flex-shrink-0 w-40 bg-white border border-gray-200 rounded-lg p-3 shadow-sm print:hidden sticky top-4">
-          <div className="flex items-center gap-2 mb-3">
-            <ImageIcon className="w-4 h-4 text-gray-600" />
-            <h3 className="font-semibold text-sm text-gray-800">이모지 추가</h3>
-          </div>
-          <p className="text-xs text-gray-500 mb-3">일기에 드래그하세요</p>
-
-          {/* Upload button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handlePhotoUpload}
-            className="hidden"
-          />
-          <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full mb-3" size="sm">
-            <Upload className="w-3 h-3 mr-1" />
-            업로드
-          </Button>
-
-          {/* Uploaded photos grid */}
-          <div className="space-y-2 max-h-[500px] overflow-y-auto">
-            {uploadedPhotos.length === 0 ? (
-              <div className="text-center py-4 text-gray-400">
-                <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-xs">이모지 없음</p>
-              </div>
-            ) : (
-              uploadedPhotos.map((photo) => (
-                <div key={photo.id} className="relative group">
-                  <div
-                    draggable
-                    onDragStart={() => handlePhotoDragStart(photo.src)}
-                    className="cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-400 transition-all rounded overflow-hidden"
-                  >
-                    <img src={photo.src || "/placeholder.svg"} alt="Upload" className="w-full h-20 object-cover" />
-                  </div>
-                  <button
-                    onClick={() => handleRemoveUploadedPhoto(photo.id)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="삭제"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))
             )}
           </div>
 
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <p className="text-xs text-gray-500">💡 드래그로 추가</p>
-            <p className="text-xs text-gray-500 mt-1">💡 클릭 후 핸들로 크기 조절</p>
+          {/* 중앙: 폰트/크기/색상 설정 */}
+          <div className="flex items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">폰트:</label>
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="px-3 py-1.5 text-sm border rounded"
+              >
+                <option value="Cafe24Shiningstar">Cafe24Shiningstar</option>
+                <option value="인천교육자람">인천교육자람</option>
+                <option value="memomentKkukkkuk">memomentKkukkkuk</option>
+                <option value="온글잎 의연체">온글잎 의연체</option>
+                <option value="PretendardVariable">PretendardVariable</option>
+                <option value="Nanum Pen Script">나눔손글씨</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 border-l border-gray-300 pl-3">
+              <label className="text-sm text-gray-600">크기:</label>
+              <input
+                type="number"
+                min="12"
+                max="32"
+                value={fontSize}
+                onChange={(e) => setFontSize(Number(e.target.value))}
+                className="w-16 px-2 py-1.5 text-sm border rounded"
+              />
+              <span className="text-sm text-gray-500">px</span>
+            </div>
+
+            <div className="flex items-center gap-2 border-l border-gray-300 pl-3">
+              <label className="text-sm text-gray-600">전체 색상:</label>
+              <input
+                type="color"
+                value={textColor}
+                onChange={(e) => setTextColor(e.target.value)}
+                className="w-12 h-8 rounded cursor-pointer border"
+              />
+            </div>
+          </div>
+
+          {/* 오른쪽: 작성 완료 */}
+          <div className="flex gap-2">
+            {diaryId && userId && (
+              <Button
+                onClick={handleCompleteClick}
+                disabled={isSavingComplete}
+                size="sm"
+                className="bg-primary hover:bg-primary/90 gap-2"
+              >
+                {isSavingComplete ? "저장 중..." : "작성 완료"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Print styles */}
+      {/* Main Layout */}
+      <div className="flex gap-4 max-w-6xl mx-auto p-6">
+        {/* Diary Pages (A4) */}
+        <div className="flex-1 space-y-8">
+          {pages.map((page, pageIdx) => (
+            <div
+              key={pageIdx}
+              className="diary-page bg-white shadow-lg relative mx-auto"
+              style={{
+                width: "210mm",
+                minHeight: "297mm",
+                padding: "20mm",
+                boxSizing: "border-box",
+                position: "relative",
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                const target = e.currentTarget as HTMLDivElement
+                handlePageDrop(e, target, pageIdx)
+              }}
+              onClick={() => setSelectedPhotoId(null)}
+            >
+              {/* Title (첫 페이지만) */}
+              {pageIdx === 0 && (
+                <div className="text-center mb-8">
+                  <h2
+                    className="text-3xl font-bold text-gray-900"
+                    style={{
+                      fontFamily: `'${fontFamily}'`,
+                      color: textColor,
+                      fontSize: (fontFamily === "온글잎 의연체" || fontFamily === "Cafe24Shiningstar")
+                        ? `${fontSize + 10}pt`
+                        : undefined
+                    }}
+                  >
+                    {title}
+                  </h2>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <div className="h-px w-16 bg-gray-400"></div>
+                    <p className="text-sm text-gray-600" style={{ fontFamily: `'${fontFamily}'` }}>
+                      {photoSlots[0]?.exifData?.timestamp
+                        ? getDateFromTimestamp(photoSlots[0].exifData.timestamp)?.toLocaleDateString("ko-KR", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })
+                        : new Date().toLocaleDateString("ko-KR", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                    </p>
+                    <div className="h-px w-16 bg-gray-400"></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="space-y-8">
+                {page.paragraphs.map((paragraph, idx) => {
+                  const globalIdx = pageIdx * ITEMS_PER_PAGE + idx
+                  const even = globalIdx % 2 === 0
+                  const photoSlot = page.slots[idx]
+                  if (!photoSlot) return null
+
+                  const loc = photoSlot.exifData?.location?.locationName
+                  const timeData = getDateFromTimestamp(photoSlot.exifData?.timestamp)
+                  const time = timeData?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  const imageUrl = getImageUrl(photoSlot)
+
+                  const position = photoPositions[photoSlot.id] || { left: 0, top: 0 }
+                  const pageElement = document.querySelectorAll('.diary-page')[pageIdx] as HTMLElement
+
+                  return (
+                    <div
+                      key={photoSlot.id}
+                      className={`flex gap-4 items-start ${even ? "flex-row" : "flex-row-reverse"}`}
+                      style={{
+                        position: 'relative',
+                        left: `${position.left}px`,
+                        top: `${position.top}px`
+                      }}
+                      onMouseMove={(e) => pageElement && handlePhotoSlotMouseMove(e, pageElement)}
+                      onMouseUp={handlePhotoSlotMouseUp}
+                      onMouseLeave={handlePhotoSlotMouseUp}
+                    >
+                      <div className="flex-shrink-0 relative">
+                        <div
+                          className="bg-white p-1.5 shadow-lg transform rotate-[-2deg]"
+                          style={{ width: "60mm", height: "80mm" }}
+                        >
+                          <img src={imageUrl} className="w-full h-full object-cover pointer-events-none" />
+                        </div>
+
+                        <div className="mt-1 text-center">
+                          {time && (
+                            <p
+                              className="text-sm text-gray-700"
+                              style={{ fontFamily: `'${fontFamily}'` }}
+                            >
+                              {time}
+                            </p>
+                          )}
+                          {loc && (
+                            <p
+                              className="text-xs text-gray-600 flex items-center justify-center gap-1"
+                              style={{ fontFamily: `'${fontFamily}'` }}
+                            >
+                              <span>📍</span> {loc}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex-1 pt-2">
+                        <div className="space-y-2">
+                          {/* Keywords */}
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {photoSlot.keywords.slice(0, 3).map((k, kIdx) => (
+                              <span
+                                key={kIdx}
+                                className="px-2 py-0.5 rounded-full text-sm inline-block"
+                                style={{
+                                  fontFamily: `'${fontFamily}'`,
+                                  border: '1px solid #000000',
+                                  backgroundColor: 'transparent',
+                                  color: '#000000',
+                                  lineHeight: '1.5',
+                                  display: 'inline-block',
+                                  verticalAlign: 'middle'
+                                }}
+                              >
+                                #{k}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Diary paragraph */}
+                          <p
+                            className="leading-relaxed select-text"
+                            style={{ fontFamily: `'${fontFamily}'`, fontSize: `${fontSize}px`, color: textColor }}
+                          >
+                            {paragraph}
+                          </p>
+
+                          <div className="mt-3">
+                            <svg width="80" height="6">
+                              <path
+                                d="M 0 4 Q 25 0, 50 4 T 100 4"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                fill="none"
+                                className="opacity-40"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Footer (마지막 페이지만) */}
+              {pageIdx === pages.length - 1 && (
+                <div className="mt-12 pt-6 border-t-2 border-dashed text-center">
+                  <p className="text-2xl text-gray-600">✈️ 여행의 끝 ✈️</p>
+                </div>
+              )}
+
+              {/* Stickers - 페이지별로 독립적으로 관리 */}
+              {(decorationPhotos[pageIdx] || []).map((photo) => {
+                const widthPx = photo.width * 3.78
+                const heightPx = photo.height * 3.78
+                const selected = selectedPhotoId === photo.id
+                const pageElement = document.querySelectorAll('.diary-page')[pageIdx] as HTMLElement
+
+                return (
+                  <div
+                    key={photo.id}
+                    className={`absolute cursor-move ${
+                      selected ? "ring-2 ring-blue-500" : "hover:ring-2 hover:ring-blue-400"
+                    }`}
+                    style={{
+                      left: `${photo.x}px`,
+                      top: `${photo.y}px`,
+                      width: `${widthPx}px`,
+                      height: `${heightPx}px`,
+                    }}
+                    onMouseDown={(e) => {
+                      if (pageElement) handlePhotoMouseDown(e, photo.id, pageElement, pageIdx)
+                    }}
+                    onDoubleClick={() => handlePhotoDoubleClick(photo.id, pageIdx)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedPhotoId(photo.id)
+                    }}
+                  >
+                    <img src={photo.src} className="w-full h-full object-cover rounded pointer-events-none" />
+
+                    {selected && pageElement && (
+                      <>
+                        {/* 8 resize handles */}
+                        <div
+                          className="absolute -top-1 -left-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nwse-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "nw", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -top-1 -right-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nesw-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "ne", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -bottom-1 -left-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nesw-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "sw", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -bottom-1 -right-1 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-nwse-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "se", pageElement, pageIdx)}
+                        />
+
+                        <div
+                          className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ns-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "n", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ns-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "s", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -left-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "w", pageElement, pageIdx)}
+                        />
+                        <div
+                          className="absolute -right-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize"
+                          onMouseDown={(e) => handleResizeMouseDown(e, photo.id, "e", pageElement, pageIdx)}
+                        />
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Sidebar */}
+        <div className="flex-shrink-0 w-40 bg-white border rounded-lg p-3 shadow-sm print:hidden sticky top-4 h-fit">
+          <div className="flex items-center gap-2 mb-3">
+            <ImageIcon className="w-4 h-4 text-gray-600" />
+            <h3 className="font-semibold text-sm">이모지 추가</h3>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">드래그해서 사용</p>
+
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
+          <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full mb-3" size="sm">
+            <Upload className="w-3 h-3 mr-1" /> 업로드
+          </Button>
+
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {uploadedPhotos.map((photo) => (
+              <div key={photo.id} className="relative group">
+                <div draggable onDragStart={() => handlePhotoDragStart(photo.src)} className="cursor-grab hover:ring-2 hover:ring-blue-400 transition-all">
+                  <img src={photo.src} className="w-full h-20 object-cover" />
+                </div>
+                <button
+                  onClick={() => handleRemoveUploadedPhoto(photo.id)}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 pt-3 border-t text-xs text-gray-500">
+            💡 드래그로 추가 가능
+          </div>
+        </div>
+      </div>
+
+      {/* Print Styles */}
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Patrick+Hand&family=Indie+Flower&family=Nanum+Pen+Script&display=swap');
-        
         @media print {
           body * {
             visibility: hidden;
           }
-          
           .diary-page,
           .diary-page * {
             visibility: visible;
           }
-          
           .diary-page {
             position: absolute;
             left: 0;
@@ -694,27 +966,20 @@ export function PrintableDiaryPage({ photoSlots, diaryText, title, onBack }: Pri
             width: 210mm !important;
             min-height: 297mm !important;
           }
-          
-          body {
-            margin: 0;
-            padding: 0;
-          }
-          
           @page {
             size: A4 portrait;
             margin: 0;
           }
         }
-        
+
         .diary-page {
-          background-image: 
-            repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 2px,
-              rgba(0, 0, 0, 0.02) 2px,
-              rgba(0, 0, 0, 0.02) 3px
-            );
+          background-image: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.02) 2px,
+            rgba(0, 0, 0, 0.02) 3px
+          );
         }
       `}</style>
     </div>

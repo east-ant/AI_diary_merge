@@ -1,0 +1,22 @@
+{
+  "name": "raspberry-pi-print-server",
+  "version": "1.0.0",
+  "description": "Raspberry Pi Print Server for AI Diary",
+  "main": "print-server.js",
+  "scripts": {
+    "start": "node print-server.js",
+    "dev": "nodemon print-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

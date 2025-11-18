@@ -1,81 +1,79 @@
 /* /app/globals.css */
 
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Light Mode - 현재 사용 중인 하얀색 테마 */
-  --background: oklch(1 0 0);  /* 하얀색 배경 */
-  --foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
-  --card: oklch(1 0 0);  /* 하얀색 카드 */
-  --card-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
-  --popover: oklch(1 0 0);  /* 하얀색 팝오버 */
-  --popover-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
-  --primary: oklch(0.205 0 0);  /* 검은색 primary */
-  --primary-foreground: oklch(0.985 0 0);  /* 하얀색 텍스트 */
-  --secondary: oklch(1 0 0);  /* 하얀색 */
-  --secondary-foreground: oklch(0.45 0.12 15);  /* 회색 텍스트 */
-  --muted: oklch(0.96 0 0);  /* 연한 회색 */
-  --muted-foreground: oklch(0.5 0.02 30);  /* 중간 회색 텍스트 */
-  --accent: oklch(0.97 0 0);  /* 연한 회색 accent */
-  --accent-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
-  --destructive: oklch(0.577 0.245 27.325);  /* 빨간색 */
-  --destructive-foreground: oklch(0.98 0.01 45);  /* 하얀색 */
-  --border: oklch(0.9 0.02 45);  /* 연한 회색 테두리 */
-  --input: oklch(0.96 0 0);  /* 연한 회색 입력 */
-  --ring: oklch(0.45 0.12 15);  /* 회색 링 */
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --background: #ffffff;
+  --foreground: #252525;
+  --card: #ffffff;
+  --card-foreground: #252525;
+  --popover: #ffffff;
+  --popover-foreground: #252525;
+  --primary: #333333;
+  --primary-foreground: #fbfbfb;
+  --secondary: #f7f7f7;
+  --secondary-foreground: #333333;
+  --muted: #f7f7f7;
+  --muted-foreground: #8e8e8e;
+  --accent: #f7f7f7;
+  --accent-foreground: #333333;
+  --destructive: #d1483d;
+  --destructive-foreground: #d1483d;
+  --border: #eaeaea;
+  --input: #eaeaea;
+  --ring: #b3b3b3;
+  --chart-1: #f59e0b;
+  --chart-2: #3b82f6;
+  --chart-3: #8b5cf6;
+  --chart-4: #10b981;
+  --chart-5: #f97316;
   --radius: 0.625rem;
-  --sidebar: oklch(1 0 0);  /* 하얀색 사이드바 */
-  --sidebar-foreground: oklch(0.2 0.02 30);  /* 검은색 텍스트 */
-  --sidebar-primary: oklch(0.205 0 0);  /* 검은색 */
-  --sidebar-primary-foreground: oklch(0.98 0.01 45);  /* 하얀색 */
-  --sidebar-accent: oklch(0.97 0 0);  /* 연한 회색 */
-  --sidebar-accent-foreground: oklch(0.45 0.12 15);  /* 회색 텍스트 */
-  --sidebar-border: oklch(0.9 0.02 45);  /* 연한 회색 테두리 */
-  --sidebar-ring: oklch(0.45 0.12 15);  /* 회색 링 */
+  --sidebar: #fbfbfb;
+  --sidebar-foreground: #252525;
+  --sidebar-primary: #333333;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #f7f7f7;
+  --sidebar-accent-foreground: #333333;
+  --sidebar-border: #eaeaea;
+  --sidebar-ring: #b3b3b3;
 }
 
 .dark {
-  /* Dark Mode - #3a3a3a 기반 다크 테마 */
-  --background: oklch(0.27 0 0);  /* 메인 배경 - #3a3a3a와 유사 */
-  --foreground: oklch(0.95 0 0);  /* 밝은 텍스트 */
-  --card: oklch(0.32 0 0);  /* 카드 배경 - 배경보다 밝게 */
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.32 0 0);  /* 팝오버 배경 - 배경보다 밝게 */
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.85 0 0);
-  --primary-foreground: oklch(0.15 0 0);
-  --secondary: oklch(0.32 0 0);  /* 세컨더리 배경 - 배경보다 밝게 */
-  --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.35 0 0);  /* 배경보다 조금 밝게 */
-  --muted-foreground: oklch(0.7 0 0);  /* 중간 밝기 텍스트 */
-  --accent: oklch(0.35 0 0);  /* 배경보다 조금 밝게 */
-  --accent-foreground: oklch(0.95 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.95 0 0);
-  --border: oklch(0.4 0 0);  /* 테두리 - 배경보다 밝게 */
-  --input: oklch(0.32 0 0);  /* 입력 필드 - 배경보다 밝게 */
-  --ring: oklch(0.5 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.22 0 0);  /* 사이드바 - 배경보다 어둡게 */
-  --sidebar-foreground: oklch(0.95 0 0);
-  --sidebar-primary: oklch(0.85 0 0);
-  --sidebar-primary-foreground: oklch(0.15 0 0);
-  --sidebar-accent: oklch(0.32 0 0);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.35 0 0);
-  --sidebar-ring: oklch(0.5 0 0);
+  --background: #252525;
+  --foreground: #fbfbfb;
+  --card: #252525;
+  --card-foreground: #fbfbfb;
+  --popover: #252525;
+  --popover-foreground: #fbfbfb;
+  --primary: #fbfbfb;
+  --primary-foreground: #333333;
+  --secondary: #454545;
+  --secondary-foreground: #fbfbfb;
+  --muted: #454545;
+  --muted-foreground: #b3b3b3;
+  --accent: #454545;
+  --accent-foreground: #fbfbfb;
+  --destructive: #8b4940;
+  --destructive-foreground: #d4a5a1;
+  --border: #454545;
+  --input: #454545;
+  --ring: #707070;
+  --chart-1: #a78bfa;
+  --chart-2: #60a5fa;
+  --chart-3: #fbbf24;
+  --chart-4: #34d399;
+  --chart-5: #f87171;
+  --sidebar: #333333;
+  --sidebar-foreground: #fbfbfb;
+  --sidebar-primary: #a78bfa;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #454545;
+  --sidebar-accent-foreground: #fbfbfb;
+  --sidebar-border: #454545;
+  --sidebar-ring: #707070;
 }
 
 @theme inline {
@@ -175,8 +173,8 @@
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    hsl(var(--border)) 20%,
-    hsl(var(--border)) 80%,
+    var(--border) 20%,
+    var(--border) 80%,
     transparent 100%
   );
 }
